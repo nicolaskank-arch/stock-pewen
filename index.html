@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Pewen</title>
+<style>
+  :root{
+    --verde:#2f5d3a; --verde2:#3a7d44; --madera:#b07b46;
+    --bg:#f6f4ef; --card:#ffffff; --txt:#26261f; --muted:#6f6a60;
+    --linea:#e7e1d6; --ok:#2f8f4e; --bajo:#c9772a; --cero:#c0392b;
+    --sombra:0 2px 10px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:20;background:var(--verde);color:#fff;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom,0));box-shadow:var(--sombra)}
+  .top{display:flex;align-items:center;gap:10px}
+  .top h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.3px;flex:1}
+  .estado{font-size:11px;opacity:.85}
+  .btn-ref{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:8px;
+    padding:6px 10px;font-size:12px;cursor:pointer}
+  .btn-ref:active{transform:scale(.96)}
+  .controls{max-width:900px;margin:0 auto;padding:10px 0 4px}
+  .row{display:flex;gap:8px;margin-top:8px}
+  .row input{flex:1;min-width:0;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);
+    color:#fff;border-radius:10px;padding:11px 12px;font-size:15px}
+  .row input::placeholder{color:rgba(255,255,255,.75)}
+  .row input:focus{outline:none;border-color:#fff;background:rgba(255,255,255,.2)}
+  .m2wrap{flex:0 0 132px;position:relative}
+  .m2wrap span{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+    font-size:13px;color:rgba(255,255,255,.8);pointer-events:none}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:10px 0 2px;-webkit-overflow-scrolling:touch}
+  .chip{white-space:nowrap;border:0;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;
+    background:rgba(255,255,255,.14);color:#fff;cursor:pointer}
+  .chip.active{background:#fff;color:var(--verde)}
+  main{max-width:900px;margin:0 auto;padding:14px 12px 60px}
+  .hint{color:var(--muted);font-size:13px;margin:2px 4px 10px}
+  .grid{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:620px){.grid{grid-template-columns:1fr 1fr}}
+  .card{background:var(--card);border:1px solid var(--linea);border-radius:14px;overflow:hidden;
+    box-shadow:var(--sombra);display:flex;flex-direction:column}
+  .ph{position:relative;background:#efeae1;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center}
+  .ph img{width:100%;height:100%;object-fit:cover;display:block}
+  .ph .noimg{color:#b7ae9e;font-size:13px;text-align:center;padding:0 10px}
+  .catlabel{position:absolute;top:8px;left:8px;background:rgba(47,93,58,.92);color:#fff;
+    font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
+  .body{padding:11px 12px 12px}
+  .nombre{font-size:15.5px;font-weight:700;line-height:1.2;margin:0 0 3px}
+  .sub{font-size:12px;color:var(--muted);margin-bottom:9px}
+  .stock{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .pill{font-size:12px;font-weight:700;padding:5px 9px;border-radius:8px;background:#f0ede6}
+  .pill.m2{background:#eaf3ec;color:var(--verde)}
+  .pill.cajas{background:#f4ede2;color:var(--madera)}
+  .pill.mm{background:#eef0f2;color:#4a5560}
+  .estado-stock{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:8px}
+  .s-ok{background:#e7f5ec;color:var(--ok)} .s-bajo{background:#fbeede;color:var(--bajo)}
+  .s-cero{background:#fbe6e3;color:var(--cero)}
+  .alcanza{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:8px;background:#e7f5ec;color:var(--ok)}
+  .no-alcanza{background:#fbe6e3;color:var(--cero)}
+  .copiar{width:100%;border:0;background:#25543a;color:#fff;padding:10px;border-radius:9px;
+    font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .copiar:active{transform:scale(.98)} .copiar.done{background:var(--verde2)}
+  .vacio{text-align:center;color:var(--muted);padding:50px 20px;font-size:15px}
+  .loader{text-align:center;color:var(--muted);padding:50px 20px}
+  .setup{max-width:620px;margin:40px auto;background:#fff;border:1px solid var(--linea);
+    border-radius:14px;padding:22px;box-shadow:var(--sombra)}
+  .setup h2{margin:0 0 8px;color:var(--verde)} .setup code{background:#f0ede6;padding:2px 6px;border-radius:5px;font-size:13px}
+  .setup input{width:100%;padding:11px;border:1px solid var(--linea);border-radius:9px;margin:10px 0;font-size:14px}
+  .setup button{background:var(--verde);color:#fff;border:0;padding:11px 16px;border-radius:9px;font-weight:700;cursor:pointer}
+  .count{font-size:12px;color:var(--muted);margin:0 4px 8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="controls">
+    <div class="top">
+      <h1>🌲 Stock Pewen</h1>
+      <span class="estado" id="estado">cargando…</span>
+      <button class="btn-ref" id="refrescar">↻ Actualizar</button>
+    </div>
+    <div class="row">
+      <input id="buscar" type="search" inputmode="search" placeholder="Buscar tono, código, marca…" autocomplete="off">
+      <div class="m2wrap">
+        <input id="m2" type="number" inputmode="decimal" min="0" placeholder="m² que necesito">
+        <span>m²</span>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+</header>
+
+<main>
+  <div id="setup" class="setup" style="display:none">
+    <h2>Falta un paso</h2>
+    <p>Pegá la URL del Web App de Apps Script (la que termina en <code>/exec</code>) para conectar el stock. Queda guardada en este dispositivo.</p>
+    <input id="setupUrl" placeholder="https://script.google.com/macros/s/AKfyc.../exec">
+    <button id="setupSave">Conectar</button>
+  </div>
+
+  <p class="hint" id="hint"></p>
+  <p class="count" id="count"></p>
+  <div id="lista"></div>
+</main>
+
+<script>
+// ====== CONFIG ======
+// URL del Web App (termina en /exec). Ya conectada al stock de Pewen.
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9bYvlWTbq8h736zhANFcbV5ALWkCT6CW6iwj7ymfcFNXtiNnRnbCsjFzgHBdMxdJh/exec";
+
+// Orden preferido y etiquetas. Los chips se arman según qué categorías haya en el stock.
+var CAT_ORDER = ['flotante','vinilico','deck','revestimiento','porcelanato','accesorio'];
+var CAT_LABEL = {flotante:'Piso flotante',vinilico:'Piso vinílico',deck:'Deck',
+  revestimiento:'Revestimiento',porcelanato:'Porcelanato',accesorio:'Accesorios'};
+var CAT_SHORT = {flotante:'Flotante',vinilico:'Vinílico',deck:'Deck',
+  revestimiento:'Revestimiento',porcelanato:'Porcelanato',accesorio:'Accesorio'};
+
+var state = { productos:[], cat:'todos', q:'', m2:null, actualizado:null };
+
+function getUrl(){ return SCRIPT_URL || localStorage.getItem('stock_url') || ''; }
+
+function init(){
+  renderChips();
+  document.getElementById('buscar').addEventListener('input', function(e){ state.q=e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById('m2').addEventListener('input', function(e){ var v=parseFloat(e.target.value); state.m2=isNaN(v)||v<=0?null:v; render(); });
+  document.getElementById('refrescar').addEventListener('click', function(){ cargar(true); });
+  document.getElementById('setupSave').addEventListener('click', function(){
+    var u=document.getElementById('setupUrl').value.trim();
+    if(!/\/exec$/.test(u)){ alert('La URL tiene que terminar en /exec'); return; }
+    localStorage.setItem('stock_url', u); document.getElementById('setup').style.display='none'; cargar(true);
+  });
+
+  if(!getUrl()){ document.getElementById('setup').style.display='block'; document.getElementById('estado').textContent=''; return; }
+  // mostrar cache guardado al toque, y refrescar en segundo plano
+  var cache = localStorage.getItem('stock_cache');
+  if(cache){ try{ var c=JSON.parse(cache); state.productos=c.productos; state.actualizado=c.actualizado; render(); setEstado(); }catch(e){} }
+  cargar(false);
+}
+
+function cargar(force){
+  var url=getUrl(); if(!url) return;
+  document.getElementById('estado').textContent='actualizando…';
+  fetch(url + (force?'?refresh=1':''), {method:'GET'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d.ok) throw new Error(d.error||'error');
+      state.productos=d.productos; state.actualizado=d.actualizado;
+      localStorage.setItem('stock_cache', JSON.stringify({productos:d.productos, actualizado:d.actualizado}));
+      render(); setEstado();
+    })
+    .catch(function(err){
+      document.getElementById('estado').textContent='sin conexión';
+      if(!state.productos.length){
+        document.getElementById('lista').innerHTML='<div class="vacio">No se pudo cargar el stock.<br>Revisá la conexión o tocá ↻ Actualizar.<br><small>'+String(err.message||err)+'</small></div>';
+      }
+    });
+}
+
+function setEstado(){
+  if(!state.actualizado){ document.getElementById('estado').textContent=''; return; }
+  var d=new Date(state.actualizado); var diff=Math.round((Date.now()-d.getTime())/60000);
+  var t = diff<1?'recién':(diff<60?('hace '+diff+' min'):('hace '+Math.round(diff/60)+' h'));
+  document.getElementById('estado').textContent='actualizado '+t;
+}
+
+function renderChips(){
+  var c=document.getElementById('chips'); c.innerHTML='';
+  var presentes={}; state.productos.forEach(function(p){ presentes[p.categoria]=(presentes[p.categoria]||0)+1; });
+  var lista=[{id:'todos', label:'Todos'}];
+  CAT_ORDER.forEach(function(id){ if(presentes[id]) lista.push({id:id, label:CAT_LABEL[id]||id, n:presentes[id]}); });
+  // categorías inesperadas que no estén en el orden
+  Object.keys(presentes).forEach(function(id){
+    if(id!=='todos' && CAT_ORDER.indexOf(id)<0) lista.push({id:id, label:id, n:presentes[id]});
+  });
+  lista.forEach(function(cat){
+    var b=document.createElement('button'); b.className='chip'+(cat.id===state.cat?' active':'');
+    b.textContent=cat.label+(cat.n?(' ('+cat.n+')'):'');
+    b.onclick=function(){ state.cat=cat.id; renderChips(); render(); };
+    c.appendChild(b);
+  });
+}
+
+function filtrados(){
+  return state.productos.filter(function(p){
+    if(state.cat!=='todos' && p.categoria!==state.cat) return false;
+    if(state.m2!=null){ if(p.m2==null || p.m2 < state.m2) return false; }
+    if(state.q){
+      var hay=(p.nombre+' '+p.tipo+' '+p.codigo+' '+(CAT_LABEL[p.categoria]||'')).toLowerCase();
+      if(hay.indexOf(state.q)<0) return false;
+    }
+    return true;
+  }).sort(function(a,b){
+    if(state.m2!=null) return (a.m2||0)-(b.m2||0);   // menor sobrante primero
+    return (b.m2||0)-(a.m2||0);                        // más stock primero
+  });
+}
+
+function render(){
+  var lista=document.getElementById('lista');
+  var hint=document.getElementById('hint');
+  if(!state.productos.length){ if(getUrl()) lista.innerHTML='<div class="loader">Cargando stock…</div>'; return; }
+
+  var arr=filtrados();
+  document.getElementById('count').textContent = arr.length+' resultado'+(arr.length===1?'':'s');
+  hint.textContent = state.m2!=null
+    ? ('Mostrando tonos con al menos '+state.m2+' m² disponibles (de menor a mayor sobrante).')
+    : '';
+
+  if(!arr.length){ lista.innerHTML='<div class="vacio">No hay tonos que cumplan.<br>Probá con menos m² u otra categoría.</div>'; return; }
+
+  lista.innerHTML='<div class="grid">'+arr.map(card).join('')+'</div>';
+}
+
+function estadoStock(p){
+  var c=p.cajas;
+  if(c===0) return '<span class="estado-stock s-cero">Sin stock</span>';
+  if(c!=null && c<=3) return '<span class="estado-stock s-bajo">Últimas '+c+'</span>';
+  return '';
+}
+
+function card(p){
+  var cajas = p.cajas==null?'—':p.cajas;
+  var m2 = p.m2==null?'—':(Math.round(p.m2*100)/100);
+  var alcanza='';
+  if(state.m2!=null && p.m2!=null){
+    var sobra=Math.round((p.m2-state.m2)*100)/100;
+    alcanza='<span class="alcanza">✓ alcanza (sobran '+sobra+' m²)</span>';
+  }
+  var img = p.foto
+    ? '<img src="'+escAttr(p.foto)+'" loading="lazy" alt="'+escAttr(p.nombre)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
+    : '<div class="noimg">Sin foto cargada</div>';
+  return ''
+  + '<div class="card">'
+  +   '<div class="ph">'+img+'<span class="catlabel">'+(CAT_SHORT[p.categoria]||p.categoria)+'</span></div>'
+  +   '<div class="body">'
+  +     '<p class="nombre">'+esc(p.nombre)+'</p>'
+  +     '<p class="sub">'+esc([p.tipo,p.mm,p.codigo?('Cód. '+p.codigo):''].filter(Boolean).join(' · '))+'</p>'
+  +     '<div class="stock">'
+  +       '<span class="pill m2">'+m2+' m²</span>'
+  +       '<span class="pill cajas">'+cajas+' cajas</span>'
+  +       (p.mm?'<span class="pill mm">'+esc(p.mm)+'</span>':'')
+  +       estadoStock(p)+alcanza
+  +     '</div>'
+  +     '<button class="copiar" onclick="copiar(this)" data-msg="'+escAttr(waMsg(p))+'">📋 Copiar para WhatsApp</button>'
+  +   '</div>'
+  + '</div>';
+}
+
+function waMsg(p){
+  var l=[];
+  l.push('*'+p.nombre+'*'+(CAT_SHORT[p.categoria]?(' — '+CAT_SHORT[p.categoria]):''));
+  var det=[p.tipo,p.mm].filter(Boolean).join(' · '); if(det) l.push(det);
+  if(p.codigo) l.push('Código: '+p.codigo);
+  if(p.m2!=null) l.push('Disponible: '+(Math.round(p.m2*100)/100)+' m² ('+(p.cajas==null?'?':p.cajas)+' cajas)');
+  return l.join('\n');
+}
+
+function copiar(btn){
+  var msg=btn.getAttribute('data-msg');
+  navigator.clipboard.writeText(msg).then(function(){
+    btn.classList.add('done'); var t=btn.textContent; btn.textContent='✓ Copiado';
+    setTimeout(function(){ btn.classList.remove('done'); btn.textContent=t; },1400);
+  }).catch(function(){ prompt('Copiá el texto:', msg); });
+}
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/\n/g,'&#10;'); }
+
+init();
+setInterval(setEstado, 60000);
+</script>
+</body>
+</html>
