@@ -48,9 +48,13 @@
   .card{background:var(--card);border:1px solid var(--linea);border-radius:14px;overflow:hidden;
     box-shadow:var(--sombra);display:flex;flex-direction:column;transition:box-shadow .15s}
   .card:hover{box-shadow:0 6px 20px rgba(20,15,10,.12)}
-  .ph{position:relative;background:#efeae1;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center}
-  .ph img{width:100%;height:100%;object-fit:cover;display:block}
+  .ph{position:relative;background:#efeae1;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .ph img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}
   .ph .noimg{color:#b7ae9e;font-size:13px;text-align:center;padding:0 10px}
+  .phlink{text-decoration:none;cursor:pointer}
+  .phlink:hover img{transform:scale(1.04)}
+  .verweb{position:absolute;bottom:8px;right:8px;background:rgba(19,17,16,.82);color:var(--oro);
+    font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:6px;letter-spacing:.2px}
   .catlabel{position:absolute;top:8px;left:8px;background:var(--oro);color:var(--negro);
     font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
   .body{padding:11px 12px 12px}
@@ -204,8 +208,7 @@ function filtrados(){
     }
     return true;
   }).sort(function(a,b){
-    if(state.m2!=null) return (a.m2||0)-(b.m2||0);   // menor sobrante primero
-    return (b.m2||0)-(a.m2||0);                        // más stock primero
+    return (b.m2||0)-(a.m2||0);   // siempre de mayor a menor m² (también al buscar)
   });
 }
 
@@ -222,7 +225,7 @@ function render(){
   var arr=filtrados();
   document.getElementById('count').textContent = arr.length+' resultado'+(arr.length===1?'':'s');
   hint.textContent = state.m2!=null
-    ? ('Mostrando tonos con al menos '+state.m2+' m² disponibles (de menor a mayor sobrante).')
+    ? ('Tonos con al menos '+state.m2+' m² disponibles (de mayor a menor).')
     : '';
 
   if(!arr.length){ lista.innerHTML='<div class="vacio">No hay tonos que cumplan.<br>Probá con menos m² u otra categoría.</div>'; return; }
@@ -248,12 +251,17 @@ function card(p){
   var img = p.foto
     ? '<img src="'+escAttr(p.foto)+'" loading="lazy" alt="'+escAttr(p.nombre)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
     : '<div class="noimg">Sin foto cargada</div>';
+  var phContent = img+'<span class="catlabel">'+(CAT_SHORT[p.categoria]||p.categoria)+'</span>'
+    + (p.link?'<span class="verweb">Ver en la web ↗</span>':'');
+  var ph = p.link
+    ? '<a class="ph phlink" href="'+escAttr(p.link)+'" target="_blank" rel="noopener">'+phContent+'</a>'
+    : '<div class="ph">'+phContent+'</div>';
   return ''
   + '<div class="card">'
-  +   '<div class="ph">'+img+'<span class="catlabel">'+(CAT_SHORT[p.categoria]||p.categoria)+'</span></div>'
+  +   ph
   +   '<div class="body">'
   +     '<p class="nombre">'+esc(p.nombre)+'</p>'
-  +     '<p class="sub">'+esc([p.tipo,p.mm,p.codigo?('Cód. '+p.codigo):''].filter(Boolean).join(' · '))+'</p>'
+  +     '<p class="sub">'+esc([p.tipo,p.mm,p.codigo?('Cód. '+p.codigo):'',p.sku?('SKU '+p.sku):''].filter(Boolean).join(' · '))+'</p>'
   +     '<div class="stock">'
   +       '<span class="pill m2">'+m2+' m²</span>'
   +       '<span class="pill cajas">'+cajas+' cajas</span>'
@@ -270,6 +278,7 @@ function waMsg(p){
   l.push('*'+p.nombre+'*'+(CAT_SHORT[p.categoria]?(' — '+CAT_SHORT[p.categoria]):''));
   var det=[p.tipo,p.mm].filter(Boolean).join(' · '); if(det) l.push(det);
   if(p.codigo) l.push('Código: '+p.codigo);
+  if(p.sku) l.push('SKU: '+p.sku);
   if(p.m2!=null) l.push('Disponible: '+(Math.round(p.m2*100)/100)+' m² ('+(p.cajas==null?'?':p.cajas)+' cajas)');
   return l.join('\n');
 }
