@@ -1,466 +1,292 @@
-/**
- * STOCK PEWEN - Web App (Google Apps Script)
- * ------------------------------------------------------------
- * Lee la planilla de stock "STOCK CBA 2025" y devuelve un JSON limpio
- * y normalizado para la app de vendedores.
- *
- * Cómo funciona el parser (robusto ante planilla desprolija):
- *  - Recorre la hoja fila por fila.
- *  - Detecta filas de ENCABEZADO (las que tienen "NOMBRE" y "M2"/"CAJAS")
- *    y arma el mapa de columnas para el bloque que sigue.
- *  - Detecta BANDAS de categoría (FLOTANTES, VINILICOS, DECKs, etc.) y
- *    clasifica cada producto en una de 5 categorías canónicas.
- *  - Combina una segunda planilla (tuya) que mapea CODIGO -> URL de foto.
- *
- * NO hay que tocar la planilla de Kevin. Todo se lee por ID.
- * ------------------------------------------------------------
- */
-
-// ====== CONFIGURACIÓN (editá estos valores) ======
-var CONFIG = {
-  // ID de la planilla de stock de Kevin (la que te compartió).
-  STOCK_SHEET_ID: '1I5TITt0H4NaCPqDvhkXsAoBL20tHAoXoDgZ-nyzzs8U',
-  // Nombre de la pestaña a leer. Dejalo vacío ('') para usar la primera hoja.
-  STOCK_TAB_NAME: '',
-
-  // ID de TU planilla de fotos (CODIGO | FOTO). Ver GUIA-DEPLOY.
-  // Dejalo vacío ('') si todavía no la creaste (la app anda igual, sin fotos).
-  FOTOS_SHEET_ID: '',
-  FOTOS_TAB_NAME: '',
-
-  // Segundos que se cachea el resultado (para que sea rápido y no lea de más).
-  CACHE_SECONDS: 300,
-
-  // Fotos automáticas: sitemaps de productos de la web de Pewen.
-  // El script las lee solo y matchea cada tono por su código. Dejá el array
-  // vacío ([]) si algún día no querés fotos automáticas.
-  SITEMAPS: [
-    'https://www.pewenpisos.com.ar/product-sitemap.xml',
-    'https://www.pewenpisos.com.ar/product-sitemap2.xml'
-  ],
-  WEB_CACHE_SECONDS: 21600   // el índice de fotos web se refresca cada 6 h
-};
-
-// ====== ENTRYPOINT ======
-function doGet(e) {
-  var out;
-  try {
-    var refresh = e && e.parameter && e.parameter.refresh === '1';
-    out = { ok: true, actualizado: nowIso(), productos: getProductos(refresh) };
-  } catch (err) {
-    out = { ok: false, error: String(err && err.message || err) };
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Pewen</title>
+<style>
+  :root{
+    --negro:#131110; --negro2:#241f1a; --oro:#f6b446; --oro2:#fbb748; --oro-dark:#b7791a;
+    --bg:#f4f1ec; --card:#ffffff; --txt:#211f1b; --muted:#7a746a;
+    --linea:#e8e3da; --ok:#2f8f4e; --bajo:#c9772a; --cero:#c0392b;
+    --sombra:0 2px 12px rgba(20,15,10,.07);
   }
-  return ContentService
-    .createTextOutput(JSON.stringify(out))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:20;background:var(--negro);color:#fff;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom,0));box-shadow:0 2px 14px rgba(0,0,0,.25);
+    border-bottom:3px solid var(--oro)}
+  .top{display:flex;align-items:center;gap:11px}
+  .logo{height:30px;width:auto;display:block;flex:0 0 auto;background:#fff;border-radius:7px;padding:4px 7px}
+  .brand{flex:1;line-height:1}
+  .brand .t1{font-size:18px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase}
+  .brand .t1 b{color:var(--oro);font-weight:800}
+  .brand .t2{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:2px}
+  .rightbox{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
+  .estado{font-size:10.5px;color:rgba(255,255,255,.7);text-align:right;white-space:nowrap}
+  .btn-ref{background:var(--oro);border:0;color:var(--negro);border-radius:8px;
+    padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex:0 0 auto;white-space:nowrap}
+  .btn-ref:active{transform:scale(.96)}
+  .controls{max-width:900px;margin:0 auto;padding:10px 0 4px}
+  .row{display:flex;gap:8px;margin-top:10px}
+  .row input{flex:1;min-width:0;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.10);
+    color:#fff;border-radius:10px;padding:11px 12px;font-size:15px}
+  .row input::placeholder{color:rgba(255,255,255,.6)}
+  .row input:focus{outline:none;border-color:var(--oro);background:rgba(255,255,255,.16)}
+  .m2wrap{flex:0 0 132px;position:relative}
+  .m2wrap span{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+    font-size:13px;color:rgba(255,255,255,.7);pointer-events:none}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:11px 0 2px;-webkit-overflow-scrolling:touch}
+  .chip{white-space:nowrap;border:0;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;
+    background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+  .chip.active{background:var(--oro);color:var(--negro);font-weight:800}
+  main{max-width:900px;margin:0 auto;padding:14px 12px 60px}
+  .hint{color:var(--muted);font-size:13px;margin:2px 4px 10px}
+  .grid{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:620px){.grid{grid-template-columns:1fr 1fr}}
+  .card{background:var(--card);border:1px solid var(--linea);border-radius:14px;overflow:hidden;
+    box-shadow:var(--sombra);display:flex;flex-direction:column;transition:box-shadow .15s}
+  .card:hover{box-shadow:0 6px 20px rgba(20,15,10,.12)}
+  .ph{position:relative;background:#efeae1;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center}
+  .ph img{width:100%;height:100%;object-fit:cover;display:block}
+  .ph .noimg{color:#b7ae9e;font-size:13px;text-align:center;padding:0 10px}
+  .catlabel{position:absolute;top:8px;left:8px;background:var(--oro);color:var(--negro);
+    font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
+  .body{padding:11px 12px 12px}
+  .nombre{font-size:15.5px;font-weight:800;line-height:1.2;margin:0 0 3px}
+  .sub{font-size:12px;color:var(--muted);margin-bottom:9px}
+  .stock{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .pill{font-size:12px;font-weight:700;padding:5px 9px;border-radius:8px;background:#f0ede6}
+  .pill.m2{background:#fbeecb;color:var(--oro-dark)}
+  .pill.cajas{background:#efece6;color:#5c5648}
+  .pill.mm{background:#eef0f2;color:#4a5560}
+  .estado-stock{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:8px}
+  .s-ok{background:#e7f5ec;color:var(--ok)} .s-bajo{background:#fbeede;color:var(--bajo)}
+  .s-cero{background:#fbe6e3;color:var(--cero)}
+  .alcanza{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:8px;background:#e7f5ec;color:var(--ok)}
+  .no-alcanza{background:#fbe6e3;color:var(--cero)}
+  .copiar{width:100%;border:0;background:var(--negro);color:var(--oro);padding:10px;border-radius:9px;
+    font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .copiar:active{transform:scale(.98)} .copiar.done{background:var(--oro);color:var(--negro)}
+  .vacio{text-align:center;color:var(--muted);padding:50px 20px;font-size:15px}
+  .loader{text-align:center;color:var(--muted);padding:50px 20px}
+  .setup{max-width:620px;margin:40px auto;background:#fff;border:1px solid var(--linea);
+    border-radius:14px;padding:22px;box-shadow:var(--sombra)}
+  .setup h2{margin:0 0 8px;color:var(--negro)} .setup code{background:#f0ede6;padding:2px 6px;border-radius:5px;font-size:13px}
+  .setup input{width:100%;padding:11px;border:1px solid var(--linea);border-radius:9px;margin:10px 0;font-size:14px}
+  .setup button{background:var(--oro);color:var(--negro);border:0;padding:11px 16px;border-radius:9px;font-weight:800;cursor:pointer}
+  .count{font-size:12px;color:var(--muted);margin:0 4px 8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="controls">
+    <div class="top">
+      <img class="logo" alt="Pewen" src="data:image/webp;base64,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">
+      <div class="brand">
+        <div class="t1">Stock <b>Pewen</b></div>
+        <div class="t2">Catálogo de stock</div>
+      </div>
+      <div class="rightbox">
+        <span class="estado" id="estado">cargando…</span>
+        <button class="btn-ref" id="refrescar">↻ Actualizar</button>
+      </div>
+    </div>
+    <div class="row">
+      <input id="buscar" type="search" inputmode="search" placeholder="Buscar tono, código, marca…" autocomplete="off">
+      <div class="m2wrap">
+        <input id="m2" type="number" inputmode="decimal" min="0" placeholder="m² que necesito">
+        <span>m²</span>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+</header>
 
-// ====== NÚCLEO ======
-function getProductos(forceRefresh) {
-  var cache = CacheService.getScriptCache();
-  var KEY = 'stock_json_v1';
-  if (!forceRefresh) {
-    var hit = cache.get(KEY);
-    if (hit) return JSON.parse(hit);
-  }
+<main>
+  <div id="setup" class="setup" style="display:none">
+    <h2>Falta un paso</h2>
+    <p>Pegá la URL del Web App de Apps Script (la que termina en <code>/exec</code>) para conectar el stock. Queda guardada en este dispositivo.</p>
+    <input id="setupUrl" placeholder="https://script.google.com/macros/s/AKfyc.../exec">
+    <button id="setupSave">Conectar</button>
+  </div>
 
-  var sheet = openTab(CONFIG.STOCK_SHEET_ID, CONFIG.STOCK_TAB_NAME);
-  var values = sheet.getDataRange().getValues();
+  <p class="hint" id="hint"></p>
+  <p class="count" id="count"></p>
+  <div id="lista"></div>
+</main>
 
-  var fotosSheet = loadFotosSheet();   // override manual (tu planilla, opcional)
-  var web = loadWebIndex();            // fotos automáticas desde pewenpisos.com.ar
+<script>
+// ====== CONFIG ======
+// URL del Web App (termina en /exec). Ya conectada al stock de Pewen.
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9bYvlWTbq8h736zhANFcbV5ALWkCT6CW6iwj7ymfcFNXtiNnRnbCsjFzgHBdMxdJh/exec";
 
-  var colmap = null;          // mapa de columnas del bloque actual
-  var categoria = null;       // categoría canónica actual
-  var productos = [];
-  var index = {};             // dedup por clave
+// Orden preferido y etiquetas. Los chips se arman según qué categorías haya en el stock.
+var CAT_ORDER = ['flotante','vinilico','deck','revestimiento','porcelanato','accesorio'];
+var CAT_LABEL = {flotante:'Piso flotante',vinilico:'Piso vinílico',deck:'Deck',
+  revestimiento:'Revestimiento',porcelanato:'Porcelanato',accesorio:'Accesorios'};
+var CAT_SHORT = {flotante:'Flotante',vinilico:'Vinílico',deck:'Deck',
+  revestimiento:'Revestimiento',porcelanato:'Porcelanato',accesorio:'Accesorio'};
 
-  for (var r = 0; r < values.length; r++) {
-    var row = values[r].map(function (c) { return c == null ? '' : String(c).trim(); });
+var state = { productos:[], cat:'todos', q:'', m2:null, actualizado:null };
 
-    // 1) ¿Fila de encabezado? (define columnas del bloque siguiente)
-    var maybe = detectHeader(row);
-    if (maybe) { colmap = maybe; if (maybe.cat) categoria = maybe.cat; continue; }
+function getUrl(){ return SCRIPT_URL || localStorage.getItem('stock_url') || ''; }
 
-    if (!colmap) continue;
-
-    // 2) ¿Fila de producto? (tiene nombre + un número de stock). Se resuelve ANTES
-    //    que la banda para que una fila de datos nunca se confunda con un título.
-    var nombre = pick(row, colmap.nombre);
-    var m2 = toNum(pick(row, colmap.m2));
-    var cajas = toNum(pick(row, colmap.disponibles));
-    var esProducto = nombre && (m2 !== null || cajas !== null);
-
-    // 3) Si NO es producto, ¿es una banda de categoría? (solo columnas principales)
-    if (!esProducto) {
-      var mainRow = row.slice(0, mainMax(colmap) + 1);
-      var cat = detectBanda(mainRow);
-      if (cat) categoria = cat;
-      continue;
-    }
-
-    if (!categoria) continue;
-    if (!nombreValido(nombre)) continue;
-    if ((m2 || 0) <= 0 && (cajas || 0) <= 0) continue;   // solo lo que tiene stock
-
-    var codigo = pick(row, colmap.codigo);
-    var tipo   = pick(row, colmap.tipo);
-    var mm     = pick(row, colmap.mm);
-
-    var clave = (categoria + '|' + (codigo || nombre)).toLowerCase();
-    var foto = fotosSheet[String(codigo).toUpperCase()] || fotosSheet[cleanKey(nombre)] ||
-               matchWebFoto(web, codigo, nombre, categoria) || '';
-
-    var prod = {
-      categoria: categoria,
-      nombre: cleanNombre(nombre),
-      tipo: tipo,
-      mm: mm,
-      codigo: codigo,
-      cajas: cajas,          // cajas/unidades disponibles
-      m2: m2,                // m2 disponibles
-      foto: foto
-    };
-
-    // dedup: la zona de abajo (más completa) pisa a la de arriba
-    if (index[clave] != null) {
-      productos[index[clave]] = mergeProd(productos[index[clave]], prod);
-    } else {
-      index[clave] = productos.length;
-      productos.push(prod);
-    }
-  }
-
-  cache.put(KEY, JSON.stringify(productos), CONFIG.CACHE_SECONDS);
-  return productos;
-}
-
-// ====== HELPERS ======
-
-function openTab(id, tabName) {
-  var ss = SpreadsheetApp.openById(id);
-  if (tabName) {
-    var s = ss.getSheetByName(tabName);
-    if (s) return s;
-  }
-  return ss.getSheets()[0];
-}
-
-// Devuelve la categoría canónica a partir de un texto (banda o encabezado).
-function categoryFromText(text) {
-  var t = String(text).toUpperCase();
-  if (/PORCELANAT|CERAMIC/.test(t)) return 'porcelanato';
-  if (/DRYBACK|VINILIC|\bLVT\b|\bSPC\b|AQUABLUE/.test(t)) return 'vinilico';
-  if (/FLOTANTE|MELAMINA/.test(t)) return 'flotante';
-  if (/\bDECKS?\b|TABLA DECK|BALDOSA DECK/.test(t)) return 'deck';
-  if (/REVESTIMIENT/.test(t)) return 'revestimiento';
-  if (/ADHESIV|ZOCALO|PERFIL|NIVELAD|TRANSICION|TAPAJUNTA|ANGULO|ACCESORIO|MOLDURA|SILICONA|\bMANTA\b|\bMANTO/.test(t)) return 'accesorio';
-  return null;
-}
-
-// Encabezado: la fila tiene "NOMBRE" y una col de M2/stock -> mapa de columnas + pista de categoría.
-function detectHeader(row) {
-  var up = row.map(function (c) { return c.toUpperCase(); });
-  var hasNombre = up.indexOf('NOMBRE') >= 0;
-  var hasM2 = up.some(function (c) { return c.indexOf('M2') === 0; });
-  var hasCajas = up.some(function (c) {
-    return c.indexOf('CAJA') >= 0 || c.indexOf('DISPONIBLE') >= 0 || c.indexOf('PARA VENDER') >= 0 ||
-           c === 'DISPO.' || c === 'DISPO' || c === 'STOCK';
+function init(){
+  renderChips();
+  document.getElementById('buscar').addEventListener('input', function(e){ state.q=e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById('m2').addEventListener('input', function(e){ var v=parseFloat(e.target.value); state.m2=isNaN(v)||v<=0?null:v; render(); });
+  document.getElementById('refrescar').addEventListener('click', function(){ cargar(true); });
+  document.getElementById('setupSave').addEventListener('click', function(){
+    var u=document.getElementById('setupUrl').value.trim();
+    if(!/\/exec$/.test(u)){ alert('La URL tiene que terminar en /exec'); return; }
+    localStorage.setItem('stock_url', u); document.getElementById('setup').style.display='none'; cargar(true);
   });
-  if (!hasNombre || !(hasM2 || hasCajas)) return null;
 
-  function find(pred) {
-    for (var i = 0; i < up.length; i++) if (pred(up[i])) return i;
-    return -1;
-  }
-  var m2 = find(function (c) { return c.indexOf('M2') === 0; });
-  var disp = find(function (c) {
-    return c.indexOf('CAJAS') >= 0 || c.indexOf('DISPO') === 0 || c === 'PARA VENDER' ||
-           c === 'DISPONIBLES' || c === 'STOCK';
-  });
-  return {
-    codigo: find(function (c) { return c === 'CODIGO'; }),
-    nombre: find(function (c) { return c === 'NOMBRE'; }),
-    tipo:   find(function (c) { return c === 'TIPO'; }),
-    mm:     find(function (c) { return c === 'MM'; }),
-    m2: m2,
-    disponibles: disp,
-    cat: categoryFromText((row[0] || '') + ' ' + (row[1] || ''))
-  };
+  if(!getUrl()){ document.getElementById('setup').style.display='block'; document.getElementById('estado').textContent=''; return; }
+  // mostrar cache guardado al toque, y refrescar en segundo plano
+  var cache = localStorage.getItem('stock_cache');
+  if(cache){ try{ var c=JSON.parse(cache); state.productos=c.productos; state.actualizado=c.actualizado; render(); setEstado(); }catch(e){} }
+  cargar(false);
 }
 
-// Banda de categoría: fila corta (título de sección) que trae una palabra clave.
-function detectBanda(row) {
-  var nonEmpty = row.filter(function (c) { return c !== ''; });
-  var probe = ((row[0] || '') + ' ' + (row[1] || '') + ' ' + (row[2] || '')).toUpperCase();
-  var looksLikeTitle = nonEmpty.length <= 8 && !/\d+\s*C\b|\d+\.\d+\s*M|\d+\s*U\b/.test(probe);
-  if (!looksLikeTitle) return null;
-  return categoryFromText(row.join(' '));
-}
-
-// Filtra notas/fechas/nombres de personas que no son tonos reales.
-var NOTE_RE = /REVISAD|VENDIDAS|CANTIDAD|LIBRES|^STOCK$|PARA VENDER|FISICAS|PEDIDOS|RESERVAD|BALDE|BOLSA|ROLLO/i;
-function nombreValido(n) {
-  n = String(n).trim();
-  if (n.length < 2 || n.length > 50) return false;
-  if (/^[\d.,\/\-\s]+$/.test(n)) return false;          // solo números/símbolos
-  if (/^\d+\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(n)) return false; // "3 Cristian Reyna"
-  if (/\d{1,2}\/\d{1,2}/.test(n)) return false;          // fecha
-  if (NOTE_RE.test(n)) return false;
-  return true;
-}
-
-function pick(row, idx) { return (idx != null && idx >= 0 && idx < row.length) ? row[idx] : ''; }
-
-// Última columna "principal" del bloque (para no mirar los bloques laterales de accesorios).
-function mainMax(cm) {
-  return Math.max(cm.codigo, cm.nombre, cm.tipo, cm.mm, cm.m2, cm.disponibles);
-}
-
-function toNum(s) {
-  if (s === '' || s == null) return null;
-  var m = String(s).replace(',', '.').match(/-?\d+(\.\d+)?/);
-  return m ? parseFloat(m[0]) : null;
-}
-
-function cleanNombre(n) {
-  // saca marcadores tipo "¡ULTIMAS CAJAS!" para el título, pero conserva el resto
-  return String(n).replace(/\s+/g, ' ').trim();
-}
-
-function cleanKey(s) {
-  return String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-function mergeProd(a, b) {
-  // b (zona de abajo) es más autoritativo; completa lo que falte y prefiere sus números
-  return {
-    categoria: a.categoria,
-    nombre: b.nombre || a.nombre,
-    tipo: b.tipo || a.tipo,
-    mm: b.mm || a.mm,
-    codigo: b.codigo || a.codigo,
-    cajas: (b.cajas != null ? b.cajas : a.cajas),
-    m2: (b.m2 != null ? b.m2 : a.m2),
-    foto: a.foto || b.foto
-  };
-}
-
-function loadFotosSheet() {
-  var map = {};
-  if (!CONFIG.FOTOS_SHEET_ID) return map;
-  try {
-    var sh = openTab(CONFIG.FOTOS_SHEET_ID, CONFIG.FOTOS_TAB_NAME);
-    var vals = sh.getDataRange().getValues();
-    if (!vals.length) return map;
-    var head = vals[0].map(function (c) { return String(c).toUpperCase().trim(); });
-    var cCod = head.indexOf('CODIGO');
-    var cNom = head.indexOf('NOMBRE');
-    var cUrl = -1;
-    for (var i = 0; i < head.length; i++) {
-      if (head[i].indexOf('FOTO') >= 0 || head[i].indexOf('URL') >= 0 || head[i].indexOf('IMAGEN') >= 0) { cUrl = i; break; }
-    }
-    if (cUrl < 0) return map;
-    for (var r = 1; r < vals.length; r++) {
-      var url = String(vals[r][cUrl] || '').trim();
-      if (!url) continue;
-      url = normalizeDriveUrl(url);
-      if (cCod >= 0 && vals[r][cCod]) map[String(vals[r][cCod]).toUpperCase().trim()] = url;
-      if (cNom >= 0 && vals[r][cNom]) map[cleanKey(vals[r][cNom])] = url;
-    }
-  } catch (err) { /* si falla, seguimos sin fotos */ }
-  return map;
-}
-
-// ====== FOTOS AUTOMÁTICAS DESDE LA WEB (sitemaps) ======
-
-// Palabras de accesorios: para no matchear un piso con la foto de un adhesivo/zócalo por nº suelto.
-var ACC_FOTO_RE = /kekol|adhesiv|silicona|sellador|zocalo|manta|nylon|perfil|angulo|nivelador|tapajunta|transicion|desnivel|deck-oval|capuchon|escalon|puerta-ventana|base-encastre|ajuste-nivel|cesped|soft|fanacola|varilla|omega|steico|ladix|ixpe/i;
-
-function sinAcentos(s) {
-  return String(s).replace(/[áàä]/gi, 'a').replace(/[éèë]/gi, 'e').replace(/[íìï]/gi, 'i')
-    .replace(/[óòö]/gi, 'o').replace(/[úùü]/gi, 'u').replace(/ñ/gi, 'n');
-}
-function fullCodes(text) {   // K224, R1017, M1022, D40482...
-  var t = sinAcentos(text).toUpperCase(), out = {}, m;
-  var re = /\b([A-Z]{1,3})-?(\d{2,6})\b/g;
-  while ((m = re.exec(t))) out[m[1] + m[2]] = 1;
-  return Object.keys(out);
-}
-function digCodes(text) {    // >=4 dígitos, agarra D40482 -> 40482
-  var t = sinAcentos(text).toUpperCase(), out = {}, m;
-  var re = /\d{4,6}/g;
-  while ((m = re.exec(t))) out[m[0]] = 1;
-  return Object.keys(out);
-}
-// Palabras genéricas que NO distinguen un tono (para el match por nombre).
-var GENERIC_TOK = {
-  REVESTIMIENTO: 1, INTERIOR: 1, EXTERIOR: 1, EPS: 1, MDF: 1, SEDA: 1, ACANALADO: 1, SIDING: 1,
-  ANGULO: 1, DERECHO: 1, IZQUIERDO: 1, COLOR: 1, LISO: 1, MATE: 1, RELIEVE: 1, VARILLAS: 1,
-  WPC: 1, MADERA: 1, CEMENTICIO: 1, PISO: 1, FLOTANTE: 1, HOME: 1, NARROW: 1, MAX: 1, CORE: 1
-};
-// Tokens distintivos de un texto (para comparar nombre de stock vs nombre en la web).
-function toksFoto(s) {
-  var t = sinAcentos(s).toUpperCase().replace(/-ACANALADO-|-MATE\/RELIEVE-|\//g, ' ');
-  var parts = t.split(/[^A-Z0-9]+/), out = {};
-  for (var i = 0; i < parts.length; i++) {
-    var w = parts[i];
-    if (w.length >= 3 && !GENERIC_TOK[w] && !/^\d{3,}$/.test(w)) out[w] = 1;
-  }
-  return Object.keys(out);
-}
-// Categoría de una entrada de la web (por su slug/nombre de archivo).
-function catFromSlug(slug, fname) {
-  var s = (slug + ' ' + fname).toLowerCase();
-  if (s.indexOf('revestimiento') >= 0) return 'revestimiento';
-  if (/porcelanat|cementic|ilva|halcon|geotiles|itagres|keratile|onice|qua-granite|prissmacer|marble|slimstone/.test(s)) return 'porcelanato';
-  if (/noble|prestigio|\bbulk\b|camaleon|baldosas-encastrables|deck/.test(s)) return 'deck';
-  if (/kekol|adhesiv|silicona|zocalo|manta|nylon|perfil|nivelador|tapajunta|transicion|desnivel|capuchon|escalon|puerta-ventana|ajuste-nivel|cesped|fanacola|varilla|omega/.test(s)) return 'accesorio';
-  return 'floor';
-}
-
-// Lee los sitemaps y arma el índice {full, dig, byCat} -> url de foto. Cacheado.
-function loadWebIndex() {
-  var empty = { full: {}, dig: {}, byCat: {} };
-  if (!CONFIG.SITEMAPS || !CONFIG.SITEMAPS.length) return empty;
-  var cache = CacheService.getScriptCache();
-  var big = getBig(cache, 'web_idx_v1');
-  if (big) { try { return JSON.parse(big); } catch (e) {} }
-
-  var idx = { full: {}, dig: {}, byCat: {} };
-  try {
-    CONFIG.SITEMAPS.forEach(function (url) {
-      var resp = UrlFetchApp.fetch(url, {
-        muteHttpExceptions: true, followRedirects: true,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' }
-      });
-      var xml = resp.getContentText();
-      var re = /<url>([\s\S]*?)<\/url>/g, m;
-      while ((m = re.exec(xml))) {
-        var blk = m[1];
-        var loc = (blk.match(/<loc>(.*?)<\/loc>/) || [])[1] || '';
-        var img = (blk.match(/<image:loc>(.*?)<\/image:loc>/) || [])[1] || '';
-        if (!img) continue;
-        var slug = loc.replace(/\/$/, '').split('/producto/').pop();
-        var fname = img.split('/').pop().replace(/\.(jpg|jpeg|png|webp)(-\d+)?(\.(jpg|jpeg|png|webp))?$/i, '');
-        var esAcc = ACC_FOTO_RE.test(slug) || ACC_FOTO_RE.test(fname);
-        fullCodes(fname).concat(fullCodes(slug)).forEach(function (k) { if (!(k in idx.full)) idx.full[k] = img; });
-        if (!esAcc) {
-          digCodes(fname).concat(digCodes(slug)).forEach(function (k) { if (!(k in idx.dig)) idx.dig[k] = img; });
-        }
-        // índice por categoría (para matchear por nombre en revestimiento/porcelanato/deck/accesorio)
-        var cat = catFromSlug(slug, fname);
-        var tk = toksFoto(slug + ' ' + fname);
-        if (tk.length) { (idx.byCat[cat] = idx.byCat[cat] || []).push({ t: tk, u: img }); }
+function cargar(force){
+  var url=getUrl(); if(!url) return;
+  document.getElementById('estado').textContent='actualizando…';
+  fetch(url + (force?'?refresh=1':''), {method:'GET'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d.ok) throw new Error(d.error||'error');
+      state.productos=d.productos; state.actualizado=d.actualizado;
+      localStorage.setItem('stock_cache', JSON.stringify({productos:d.productos, actualizado:d.actualizado}));
+      render(); setEstado();
+    })
+    .catch(function(err){
+      document.getElementById('estado').textContent='sin conexión';
+      if(!state.productos.length){
+        document.getElementById('lista').innerHTML='<div class="vacio">No se pudo cargar el stock.<br>Revisá la conexión o tocá ↻ Actualizar.<br><small>'+String(err.message||err)+'</small></div>';
       }
     });
-    // Solo cacheamos si REALMENTE encontramos fotos (para no envenenar el cache con vacío).
-    if (Object.keys(idx.full).length > 0) {
-      putBig(cache, 'web_idx_v1', JSON.stringify(idx), CONFIG.WEB_CACHE_SECONDS);
-    }
-  } catch (err) { /* si la web no responde, seguimos sin fotos automáticas */ }
-  return idx;
 }
 
-// Limpia el cache del índice de fotos web (útil si cambió el sitio o para forzar relectura).
-function limpiarCacheFotos() {
-  var cache = CacheService.getScriptCache();
-  var n = parseInt(cache.get('web_idx_v1_n'), 10) || 0;
-  var keys = ['web_idx_v1_n'];
-  for (var i = 0; i < n + 5; i++) keys.push('web_idx_v1_' + i);
-  cache.removeAll(keys);
-  Logger.log('Cache de fotos limpiado.');
+function setEstado(){
+  if(!state.actualizado){ document.getElementById('estado').textContent=''; return; }
+  var d=new Date(state.actualizado); var diff=Math.round((Date.now()-d.getTime())/60000);
+  var t = diff<1?'recién':(diff<60?('hace '+diff+' min'):('hace '+Math.round(diff/60)+' h'));
+  document.getElementById('estado').textContent='actualizado '+t;
 }
 
-// Diagnóstico: corré esto (Ejecutar) y mirá el Registro. Dice si la web responde bien.
-function debugFotos() {
-  limpiarCacheFotos();
-  CONFIG.SITEMAPS.forEach(function (url) {
-    var resp = UrlFetchApp.fetch(url, {
-      muteHttpExceptions: true, followRedirects: true,
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' }
-    });
-    var txt = resp.getContentText();
-    var urls = (txt.match(/<url>/g) || []).length;
-    Logger.log(url + '\n  HTTP ' + resp.getResponseCode() + ' | largo ' + txt.length + ' | <url> encontrados: ' + urls);
-    Logger.log('  primeros 200: ' + txt.substring(0, 200).replace(/\s+/g, ' '));
+function renderChips(){
+  var c=document.getElementById('chips'); c.innerHTML='';
+  var presentes={}; state.productos.forEach(function(p){ presentes[p.categoria]=(presentes[p.categoria]||0)+1; });
+  var lista=[{id:'todos', label:'Todos'}];
+  CAT_ORDER.forEach(function(id){ if(presentes[id]) lista.push({id:id, label:CAT_LABEL[id]||id, n:presentes[id]}); });
+  // categorías inesperadas que no estén en el orden
+  Object.keys(presentes).forEach(function(id){
+    if(id!=='todos' && CAT_ORDER.indexOf(id)<0) lista.push({id:id, label:id, n:presentes[id]});
   });
-  var idx = loadWebIndex();
-  var cats = idx.byCat ? Object.keys(idx.byCat).map(function (k) { return k + ':' + idx.byCat[k].length; }).join(' ') : '';
-  Logger.log('Índice -> full:' + Object.keys(idx.full).length + ' dig:' + Object.keys(idx.dig).length + ' | byCat ' + cats);
-  Logger.log('Prueba R1017 (flotante) -> ' + matchWebFoto(idx, 'R1017', 'Tessin Chesnut', 'flotante'));
-  Logger.log('Prueba Nebraska (vinilico) -> ' + matchWebFoto(idx, '', 'Nebraska', 'vinilico'));
-  Logger.log('Prueba Nero Gold (revestimiento) -> ' + matchWebFoto(idx, '', 'Nero Gold', 'revestimiento'));
+  lista.forEach(function(cat){
+    var b=document.createElement('button'); b.className='chip'+(cat.id===state.cat?' active':'');
+    b.textContent=cat.label+(cat.n?(' ('+cat.n+')'):'');
+    b.onclick=function(){ state.cat=cat.id; renderChips(); render(); };
+    c.appendChild(b);
+  });
 }
 
-// Busca la foto de un tono: código completo -> dígitos -> nombre (acotado a su categoría).
-function matchWebFoto(idx, codigo, nombre, categoria) {
-  var fc = fullCodes(codigo);
-  for (var i = 0; i < fc.length; i++) if (idx.full[fc[i]]) return idx.full[fc[i]];
-  var dc = digCodes(codigo);
-  for (var j = 0; j < dc.length; j++) if (idx.dig[dc[j]]) return idx.dig[dc[j]];
-
-  // match por nombre, SOLO dentro de la misma categoría (para no traer el tono equivocado).
-  var lookup = (categoria === 'flotante' || categoria === 'vinilico') ? 'floor' : categoria;
-  var arr = idx.byCat && idx.byCat[lookup];
-  if (arr) {
-    var st = toksFoto(nombre);
-    if (st.length) {
-      var setObj = {}, a;
-      for (a = 0; a < st.length; a++) setObj[st[a]] = 1;
-      var best = '', bestScore = 0;
-      for (var e = 0; e < arr.length; e++) {
-        var tk = arr[e].t, inter = 0;
-        for (var b = 0; b < tk.length; b++) if (setObj[tk[b]]) inter++;
-        if (!inter) continue;
-        var sc = inter / st.length;
-        if (sc > bestScore) { bestScore = sc; best = arr[e].u; }
-      }
-      if (best && bestScore >= 0.6) return best;   // umbral exigente = sin fotos equivocadas
+function filtrados(){
+  return state.productos.filter(function(p){
+    if(state.cat!=='todos' && p.categoria!==state.cat) return false;
+    if(state.m2!=null){ if(p.m2==null || p.m2 < state.m2) return false; }
+    if(state.q){
+      var hay=(p.nombre+' '+p.tipo+' '+p.codigo+' '+(CAT_LABEL[p.categoria]||'')).toLowerCase();
+      if(hay.indexOf(state.q)<0) return false;
     }
-  }
+    return true;
+  }).sort(function(a,b){
+    if(state.m2!=null) return (a.m2||0)-(b.m2||0);   // menor sobrante primero
+    return (b.m2||0)-(a.m2||0);                        // más stock primero
+  });
+}
+
+var _chipsSig='';
+function render(){
+  var lista=document.getElementById('lista');
+  var hint=document.getElementById('hint');
+  if(!state.productos.length){ if(getUrl()) lista.innerHTML='<div class="loader">Cargando stock…</div>'; return; }
+
+  // rebuild de chips cuando cambian las categorías presentes (ej. al llegar los datos)
+  var sig=CAT_ORDER.filter(function(id){return state.productos.some(function(p){return p.categoria===id;});}).join(',');
+  if(sig!==_chipsSig){ _chipsSig=sig; renderChips(); }
+
+  var arr=filtrados();
+  document.getElementById('count').textContent = arr.length+' resultado'+(arr.length===1?'':'s');
+  hint.textContent = state.m2!=null
+    ? ('Mostrando tonos con al menos '+state.m2+' m² disponibles (de menor a mayor sobrante).')
+    : '';
+
+  if(!arr.length){ lista.innerHTML='<div class="vacio">No hay tonos que cumplan.<br>Probá con menos m² u otra categoría.</div>'; return; }
+
+  lista.innerHTML='<div class="grid">'+arr.map(card).join('')+'</div>';
+}
+
+function estadoStock(p){
+  var c=p.cajas;
+  if(c===0) return '<span class="estado-stock s-cero">Sin stock</span>';
+  if(c!=null && c<=3) return '<span class="estado-stock s-bajo">Últimas '+c+'</span>';
   return '';
 }
 
-// Guarda/lee un string grande en cache partiéndolo en trozos (CacheService: 100KB/clave).
-function putBig(cache, key, str, ttl) {
-  var CHUNK = 90000, parts = Math.ceil(str.length / CHUNK), obj = {};
-  obj[key + '_n'] = String(parts);
-  for (var i = 0; i < parts; i++) obj[key + '_' + i] = str.substr(i * CHUNK, CHUNK);
-  cache.putAll(obj, ttl);
-}
-function getBig(cache, key) {
-  var n = parseInt(cache.get(key + '_n'), 10);
-  if (!n) return null;
-  var keys = [];
-  for (var i = 0; i < n; i++) keys.push(key + '_' + i);
-  var got = cache.getAll(keys), parts = [];
-  for (var j = 0; j < n; j++) {
-    var p = got[key + '_' + j];
-    if (p == null) return null;   // algún trozo venció: rearmamos
-    parts.push(p);
+function card(p){
+  var cajas = p.cajas==null?'—':p.cajas;
+  var m2 = p.m2==null?'—':(Math.round(p.m2*100)/100);
+  var alcanza='';
+  if(state.m2!=null && p.m2!=null){
+    var sobra=Math.round((p.m2-state.m2)*100)/100;
+    alcanza='<span class="alcanza">✓ alcanza (sobran '+sobra+' m²)</span>';
   }
-  return parts.join('');
+  var img = p.foto
+    ? '<img src="'+escAttr(p.foto)+'" loading="lazy" alt="'+escAttr(p.nombre)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
+    : '<div class="noimg">Sin foto cargada</div>';
+  return ''
+  + '<div class="card">'
+  +   '<div class="ph">'+img+'<span class="catlabel">'+(CAT_SHORT[p.categoria]||p.categoria)+'</span></div>'
+  +   '<div class="body">'
+  +     '<p class="nombre">'+esc(p.nombre)+'</p>'
+  +     '<p class="sub">'+esc([p.tipo,p.mm,p.codigo?('Cód. '+p.codigo):''].filter(Boolean).join(' · '))+'</p>'
+  +     '<div class="stock">'
+  +       '<span class="pill m2">'+m2+' m²</span>'
+  +       '<span class="pill cajas">'+cajas+' cajas</span>'
+  +       (p.mm?'<span class="pill mm">'+esc(p.mm)+'</span>':'')
+  +       estadoStock(p)+alcanza
+  +     '</div>'
+  +     '<button class="copiar" onclick="copiar(this)" data-msg="'+escAttr(waMsg(p))+'">📋 Copiar para WhatsApp</button>'
+  +   '</div>'
+  + '</div>';
 }
 
-// Convierte un link de Google Drive "compartir" en uno que se puede mostrar como <img>.
-function normalizeDriveUrl(url) {
-  var m = url.match(/drive\.google\.com\/file\/d\/([^/]+)/) ||
-          url.match(/[?&]id=([^&]+)/);
-  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1000';
-  return url;
+function waMsg(p){
+  var l=[];
+  l.push('*'+p.nombre+'*'+(CAT_SHORT[p.categoria]?(' — '+CAT_SHORT[p.categoria]):''));
+  var det=[p.tipo,p.mm].filter(Boolean).join(' · '); if(det) l.push(det);
+  if(p.codigo) l.push('Código: '+p.codigo);
+  if(p.m2!=null) l.push('Disponible: '+(Math.round(p.m2*100)/100)+' m² ('+(p.cajas==null?'?':p.cajas)+' cajas)');
+  return l.join('\n');
 }
 
-function nowIso() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Argentina/Cordoba', "yyyy-MM-dd'T'HH:mm:ssXXX");
+function copiar(btn){
+  var msg=btn.getAttribute('data-msg');
+  navigator.clipboard.writeText(msg).then(function(){
+    btn.classList.add('done'); var t=btn.textContent; btn.textContent='✓ Copiado';
+    setTimeout(function(){ btn.classList.remove('done'); btn.textContent=t; },1400);
+  }).catch(function(){ prompt('Copiá el texto:', msg); });
 }
 
-// Útil para probar desde el editor (Run > testParse y mirá los logs).
-function testParse() {
-  var p = getProductos(true);
-  Logger.log('Total productos: ' + p.length);
-  var byCat = {};
-  p.forEach(function (x) { byCat[x.categoria] = (byCat[x.categoria] || 0) + 1; });
-  Logger.log(JSON.stringify(byCat));
-  Logger.log(JSON.stringify(p.slice(0, 5), null, 2));
-}
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/\n/g,'&#10;'); }
+
+init();
+setInterval(setEstado, 60000);
+</script>
+</body>
+</html>
