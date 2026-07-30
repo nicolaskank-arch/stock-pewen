@@ -89,23 +89,32 @@
     font-size:11px;font-weight:800;padding:4px 9px;border-radius:6px;letter-spacing:.3px;
     border:0;cursor:pointer}
   .masfotos:active{transform:scale(.95)}
-  .visor{position:fixed;inset:0;z-index:50;background:rgba(12,10,9,.94);display:none;
-    flex-direction:column;padding:14px calc(14px + env(safe-area-inset-right,0)) calc(14px + env(safe-area-inset-bottom,0))}
+  /* carrete: una foto por vez, completa, se desliza con el dedo */
+  .visor{position:fixed;inset:0;z-index:50;background:rgba(12,10,9,.97);display:none;flex-direction:column}
   .visor.abierto{display:flex}
-  .visor-top{display:flex;align-items:center;gap:10px;color:#fff;margin-bottom:12px;flex:0 0 auto}
-  .visor-top b{font-size:15px;flex:1;line-height:1.25}
-  .visor-cerrar{background:rgba(255,255,255,.15);border:0;color:#fff;font-size:20px;line-height:1;
+  .visor-top{display:flex;align-items:center;gap:10px;color:#fff;flex:0 0 auto;
+    padding:12px 14px calc(12px) 14px}
+  .visor-top b{font-size:15px;flex:1;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .contador{font-size:13px;font-weight:700;color:var(--oro);flex:0 0 auto;
+    background:rgba(255,255,255,.10);padding:5px 10px;border-radius:999px}
+  .visor-cerrar{background:rgba(255,255,255,.15);border:0;color:#fff;font-size:22px;line-height:1;
     width:38px;height:38px;border-radius:10px;cursor:pointer;flex:0 0 auto}
-  .visor-lista{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;gap:12px;
-    grid-template-columns:1fr}
-  @media(min-width:620px){.visor-lista{grid-template-columns:1fr 1fr}}
-  .vfoto{background:#211f1b;border-radius:12px;overflow:hidden}
-  .vfoto img{width:100%;display:block;background:#2c2924}
-  .vfoto-pie{display:flex;align-items:center;gap:8px;padding:9px 10px}
-  .vfoto-pie span{flex:1;color:rgba(255,255,255,.62);font-size:11.5px;overflow:hidden;
-    text-overflow:ellipsis;white-space:nowrap}
-  .vdesc{background:var(--oro);color:var(--negro);text-decoration:none;font-size:12px;font-weight:800;
-    padding:7px 12px;border-radius:8px;white-space:nowrap}
+  .carrete{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:0}
+  .carrete::-webkit-scrollbar{display:none}
+  .slide{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
+    display:flex;align-items:center;justify-content:center;padding:0 10px}
+  .slide img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;
+    border-radius:10px;display:block}
+  .visor-bot{flex:0 0 auto;display:flex;align-items:center;gap:10px;
+    padding:12px 14px calc(14px + env(safe-area-inset-bottom,0))}
+  .flecha{background:rgba(255,255,255,.14);border:0;color:#fff;font-size:24px;line-height:1;
+    width:44px;height:44px;border-radius:12px;cursor:pointer;flex:0 0 auto}
+  .flecha:disabled{opacity:.25}
+  .vdesc{flex:1;text-align:center;background:var(--oro);color:var(--negro);text-decoration:none;
+    font-size:14px;font-weight:800;padding:13px 12px;border-radius:12px}
+  .vpie{text-align:center;color:rgba(255,255,255,.5);font-size:11.5px;padding:0 14px 2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -123,7 +132,7 @@
       </div>
     </div>
     <div class="row">
-      <input id="buscar" type="search" inputmode="search" placeholder="Buscar tono, código, marca…" autocomplete="off">
+      <input id="buscar" type="search" inputmode="search" placeholder="Buscar tono, código, zócalo, varilla…" autocomplete="off">
       <div class="m2wrap">
         <input id="m2" type="number" inputmode="decimal" min="0" placeholder="m² que necesito">
         <span>m²</span>
@@ -149,9 +158,16 @@
 <div class="visor" id="visor">
   <div class="visor-top">
     <b id="visorTit"></b>
+    <span class="contador" id="visorCont"></span>
     <button class="visor-cerrar" id="visorCerrar" aria-label="Cerrar">&times;</button>
   </div>
-  <div class="visor-lista" id="visorLista"></div>
+  <div class="carrete" id="carrete"></div>
+  <div class="vpie" id="visorPie"></div>
+  <div class="visor-bot">
+    <button class="flecha" id="visorPrev" aria-label="Anterior">&lsaquo;</button>
+    <a class="vdesc" id="visorDesc" href="#" target="_blank" rel="noopener" download>Descargar</a>
+    <button class="flecha" id="visorNext" aria-label="Siguiente">&rsaquo;</button>
+  </div>
 </div>
 
 <script>
@@ -168,6 +184,28 @@ var CAT_SHORT = {flotante:'Flotante',vinilico:'Vinílico',deck:'Deck',
 
 var state = { productos:[], accesorios:[], cat:'todos', q:'', m2:null, actualizado:null };
 
+// Los accesorios se muestran en tres solapas: los adhesivos no tienen nada que
+// ver con zócalos ni varillas y el vendedor los busca por separado.
+var ACC_FAMS = [
+  {id:'zocalos',  label:'Zócalos'},
+  {id:'varillas', label:'Varillas'},
+  {id:'adhesivos',label:'Adhesivos'}
+];
+function famAcc(a){
+  var t=(a.tipo||'').toUpperCase();
+  if(t.indexOf('VARILLA')===0) return 'varillas';
+  if(/ADHESIV|SILICONA|MANTO|MASA|FIELTRO/.test(t)) return 'adhesivos';
+  return 'zocalos';
+}
+function esChipAcc(id){
+  for(var i=0;i<ACC_FAMS.length;i++) if(ACC_FAMS[i].id===id) return true;
+  return false;
+}
+// Texto sobre el que busca el buscador de accesorios.
+function textoAcc(a){
+  return (a.tono+' '+a.tipo+' '+(a.unidad||'')).toLowerCase();
+}
+
 function getUrl(){ return SCRIPT_URL || localStorage.getItem('stock_url') || ''; }
 
 function init(){
@@ -179,8 +217,23 @@ function init(){
   document.getElementById('visor').addEventListener('click', function(e){
     if(e.target===this) cerrarVisor();          // tocar el fondo cierra
   });
+  document.getElementById('visorPrev').addEventListener('click', function(){ irAFoto(_verPos-1); });
+  document.getElementById('visorNext').addEventListener('click', function(){ irAFoto(_verPos+1); });
+  // al deslizar con el dedo, el contador sigue a la foto que quedó centrada
+  var _t=null;
+  document.getElementById('carrete').addEventListener('scroll', function(){
+    var c=this;
+    clearTimeout(_t);
+    _t=setTimeout(function(){
+      var n=Math.round(c.scrollLeft/c.clientWidth);
+      if(n!==_verPos){ _verPos=n; actualizarVisor(); }
+    },80);
+  });
   document.addEventListener('keydown', function(e){
+    if(!document.getElementById('visor').classList.contains('abierto')) return;
     if(e.key==='Escape') cerrarVisor();
+    if(e.key==='ArrowLeft') irAFoto(_verPos-1);
+    if(e.key==='ArrowRight') irAFoto(_verPos+1);
   });
   document.getElementById('setupSave').addEventListener('click', function(){
     var u=document.getElementById('setupUrl').value.trim();
@@ -226,8 +279,9 @@ function renderChips(){
   var presentes={}; state.productos.forEach(function(p){ presentes[p.categoria]=(presentes[p.categoria]||0)+1; });
   var lista=[{id:'todos', label:'Todos'}];
   CAT_ORDER.forEach(function(id){ if(presentes[id]) lista.push({id:id, label:CAT_LABEL[id]||id, n:presentes[id]}); });
-  // accesorios como chip separado
-  if(state.accesorios.length) lista.push({id:'accesorios', label:'Accesorios', n:state.accesorios.length});
+  // accesorios: una solapa por familia (zócalos / varillas / adhesivos)
+  var pf={}; state.accesorios.forEach(function(a){ var f=famAcc(a); pf[f]=(pf[f]||0)+1; });
+  ACC_FAMS.forEach(function(f){ if(pf[f.id]) lista.push({id:f.id, label:f.label, n:pf[f.id]}); });
   // categorías inesperadas que no estén en el orden
   Object.keys(presentes).forEach(function(id){
     if(id!=='todos' && CAT_ORDER.indexOf(id)<0) lista.push({id:id, label:id, n:presentes[id]});
@@ -240,13 +294,23 @@ function renderChips(){
   });
 }
 
+// Accesorios que cumplen la búsqueda (opcionalmente acotados a una familia).
+function accFiltrados(fam){
+  return state.accesorios.filter(function(a){
+    if(fam && famAcc(a)!==fam) return false;
+    if(state.q && textoAcc(a).indexOf(state.q)<0) return false;
+    return true;
+  }).sort(function(a,b){
+    if(a.tipo!==b.tipo) return a.tipo.localeCompare(b.tipo,'es');
+    return a.tono.localeCompare(b.tono,'es',{numeric:true});
+  });
+}
+
 function filtrados(){
-  if(state.cat==='accesorios'){
+  if(esChipAcc(state.cat)){
     return state.accesorios.filter(function(a){
-      if(state.q){
-        var hay=(a.tono+' '+a.tipo).toLowerCase();
-        if(hay.indexOf(state.q)<0) return false;
-      }
+      if(famAcc(a)!==state.cat) return false;
+      if(state.q && textoAcc(a).indexOf(state.q)<0) return false;
       return true;
     }).sort(function(a,b){
       if(a.tipo!==b.tipo) return a.tipo.localeCompare(b.tipo,'es');
@@ -281,36 +345,49 @@ function render(){
   _galeria=[];   // se rearma en cada render junto con las tarjetas
   document.getElementById('count').textContent = arr.length+' resultado'+(arr.length===1?'':'s');
 
-  // hint solo para productos (no para accesorios)
-  if(state.cat==='accesorios'){
-    hint.textContent = '';
-    document.getElementById('m2').parentNode.style.display='none';
-  } else {
-    document.getElementById('m2').parentNode.style.display='';
-    hint.textContent = state.m2!=null
-      ? ('Tonos con al menos '+state.m2+' m² disponibles (de mayor a menor).')
-      : '';
-  }
+  // el buscador por m² solo tiene sentido en productos
+  var esAcc = esChipAcc(state.cat);
+  document.getElementById('m2').parentNode.style.display = esAcc ? 'none' : '';
+  hint.textContent = (!esAcc && state.m2!=null)
+    ? ('Tonos con al menos '+state.m2+' m² disponibles (de mayor a menor).')
+    : '';
 
-  if(!arr.length){ lista.innerHTML='<div class="vacio">No hay resultados que cumplan.<br>Probá con otro filtro.</div>'; return; }
+  // Buscando desde "Todos" también aparecen los accesorios que coincidan, así no
+  // hace falta saber en qué solapa está lo que se busca.
+  var extra = (state.cat==='todos' && state.q) ? accFiltrados(null) : [];
 
-  if(state.cat==='accesorios'){
-    // agrupados por tipo, con un título por grupo
-    var html='', tipoActual=null;
-    arr.forEach(function(a,i){
-      if(a.tipo!==tipoActual){
-        if(tipoActual!==null) html+='</div>';
-        tipoActual=a.tipo;
-        html+='<h3 class="grupo">'+esc(a.tipo)+'</h3><div class="grid">';
-      }
-      html+=cardAccesorio(a);
-    });
-    if(tipoActual!==null) html+='</div>';
-    lista.innerHTML=html;
+  if(!arr.length && !extra.length){
+    lista.innerHTML='<div class="vacio">No hay resultados que cumplan.<br>Probá con otro filtro.</div>';
     return;
   }
+  if(extra.length){
+    document.getElementById('count').textContent =
+      arr.length+' producto'+(arr.length===1?'':'s')+' y '+extra.length+' accesorio'+(extra.length===1?'':'s');
+  }
 
-  lista.innerHTML='<div class="grid">'+arr.map(card).join('')+'</div>';
+  var html='';
+  if(esAcc){
+    html = porGrupos(arr);
+  } else {
+    if(arr.length) html += '<div class="grid">'+arr.map(card).join('')+'</div>';
+    if(extra.length) html += porGrupos(extra);
+  }
+  lista.innerHTML=html;
+}
+
+// Accesorios agrupados por tipo, con un título por grupo.
+function porGrupos(arr){
+  var html='', tipoActual=null;
+  arr.forEach(function(a){
+    if(a.tipo!==tipoActual){
+      if(tipoActual!==null) html+='</div>';
+      tipoActual=a.tipo;
+      html+='<h3 class="grupo">'+esc(a.tipo)+'</h3><div class="grid">';
+    }
+    html+=cardAccesorio(a);
+  });
+  if(tipoActual!==null) html+='</div>';
+  return html;
 }
 
 function estadoStock(p){
@@ -415,20 +492,38 @@ function badgeFotos(fotos, titulo){
   return '<button class="masfotos" onclick="abrirVisor(event,'+i+')">+'+(fotos.length-1)+' fotos</button>';
 }
 
+var _verFotos=[], _verPos=0;
+
 function abrirVisor(ev, i){
   if(ev){ ev.preventDefault(); ev.stopPropagation(); }
   var g=_galeria[i]; if(!g) return;
+  _verFotos=g.fotos; _verPos=0;
   document.getElementById('visorTit').textContent=g.titulo;
-  document.getElementById('visorLista').innerHTML=g.fotos.map(function(f){
-    var etiq = f.o==='drive' ? (f.n||'Drive') : 'pewenpisos.com.ar';
-    return '<div class="vfoto">'
-      + '<img src="'+escAttr(f.u)+'" loading="lazy" alt="'+escAttr(g.titulo)+'">'
-      + '<div class="vfoto-pie"><span>'+esc(etiq)+'</span>'
-      + '<a class="vdesc" href="'+escAttr(f.d)+'" target="_blank" rel="noopener" download>Descargar</a>'
-      + '</div></div>';
+  var c=document.getElementById('carrete');
+  c.innerHTML=g.fotos.map(function(f){
+    return '<div class="slide"><img src="'+escAttr(f.u)+'" alt="'+escAttr(g.titulo)+'"></div>';
   }).join('');
+  c.scrollLeft=0;
   document.getElementById('visor').classList.add('abierto');
   document.body.style.overflow='hidden';
+  actualizarVisor();
+}
+
+// Refleja en el pie y el contador la foto que se está viendo.
+function actualizarVisor(){
+  var f=_verFotos[_verPos]; if(!f) return;
+  document.getElementById('visorCont').textContent=(_verPos+1)+' / '+_verFotos.length;
+  document.getElementById('visorPie').textContent = f.o==='drive' ? (f.n||'Drive') : 'pewenpisos.com.ar';
+  document.getElementById('visorDesc').setAttribute('href', f.d);
+  document.getElementById('visorPrev').disabled = _verPos===0;
+  document.getElementById('visorNext').disabled = _verPos===_verFotos.length-1;
+}
+
+function irAFoto(n){
+  var c=document.getElementById('carrete');
+  n=Math.max(0, Math.min(n, _verFotos.length-1));
+  c.scrollTo({left:n*c.clientWidth, behavior:'smooth'});
+  _verPos=n; actualizarVisor();
 }
 
 function cerrarVisor(){
