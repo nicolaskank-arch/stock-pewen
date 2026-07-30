@@ -30,16 +30,41 @@
   .btn-ref:active{transform:scale(.96)}
   .controls{max-width:900px;margin:0 auto;padding:10px 0 4px}
   .row{display:flex;gap:8px;margin-top:10px}
-  .row input{flex:1;min-width:0;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.10);
-    color:#fff;border-radius:10px;padding:11px 12px;font-size:15px}
+  .row input{flex:1;min-width:0;width:100%;border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.10);color:#fff;border-radius:10px;padding:12px 12px;
+    font-size:16px}   /* 16px: menos de eso, iOS hace zoom al tocar el campo */
   .row input::placeholder{color:rgba(255,255,255,.6)}
   .row input:focus{outline:none;border-color:var(--oro);background:rgba(255,255,255,.16)}
-  .m2wrap{flex:0 0 132px;position:relative}
-  .m2wrap span{position:absolute;right:12px;top:50%;transform:translateY(-50%);
-    font-size:13px;color:rgba(255,255,255,.7);pointer-events:none}
+  .buscawrap{flex:1;min-width:0;position:relative;display:flex}
+  .limpiar{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.18);
+    border:0;color:#fff;width:30px;height:30px;border-radius:50%;font-size:17px;line-height:1;
+    cursor:pointer;display:none}
+  .limpiar.on{display:block}
+  /* en pantalla chica el buscador manda: el m² se achica y el botón queda solo con la lupa */
+  .m2wrap{flex:0 0 92px;position:relative;display:flex}
+  .m2wrap input{padding-right:28px}
+  .m2wrap span{position:absolute;right:9px;top:50%;transform:translateY(-50%);
+    font-size:12.5px;color:rgba(255,255,255,.7);pointer-events:none}
+  .btn-buscar{flex:0 0 auto;background:var(--oro);border:0;color:var(--negro);border-radius:10px;
+    padding:0 14px;min-height:46px;font-size:15px;font-weight:800;cursor:pointer;
+    display:flex;align-items:center;gap:6px}
+  .btn-buscar:active{transform:scale(.96)}
+  .btn-buscar .txt{display:none}
+  @media(min-width:520px){
+    .m2wrap{flex:0 0 128px}
+    .btn-buscar .txt{display:inline}
+  }
+  /* aviso de filtro activo */
+  .filtro{display:none;align-items:center;gap:8px;margin:10px 4px 0;padding:9px 12px;
+    background:rgba(246,180,70,.14);border:1px solid rgba(246,180,70,.4);border-radius:10px}
+  .filtro.on{display:flex}
+  .filtro span{flex:1;color:#fff;font-size:13px;line-height:1.3}
+  .filtro span b{color:var(--oro)}
+  .filtro button{background:rgba(255,255,255,.16);border:0;color:#fff;font-size:12px;font-weight:700;
+    padding:7px 11px;border-radius:8px;cursor:pointer;white-space:nowrap}
   .chips{display:flex;gap:7px;overflow-x:auto;padding:11px 0 2px;-webkit-overflow-scrolling:touch}
-  .chip{white-space:nowrap;border:0;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;
-    background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+  .chip{white-space:nowrap;border:0;border-radius:999px;padding:11px 15px;font-size:13.5px;font-weight:600;
+    background:rgba(255,255,255,.12);color:#fff;cursor:pointer;min-height:42px}
   .chip.active{background:var(--oro);color:var(--negro);font-weight:800}
   main{max-width:900px;margin:0 auto;padding:14px 12px 60px}
   .hint{color:var(--muted);font-size:13px;margin:2px 4px 10px}
@@ -70,8 +95,9 @@
   .s-cero{background:#fbe6e3;color:var(--cero)}
   .alcanza{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:8px;background:#e7f5ec;color:var(--ok)}
   .no-alcanza{background:#fbe6e3;color:var(--cero)}
-  .copiar{width:100%;border:0;background:var(--negro);color:var(--oro);padding:10px;border-radius:9px;
-    font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .copiar{width:100%;border:0;background:var(--negro);color:var(--oro);padding:13px 10px;border-radius:9px;
+    font-size:13.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    gap:6px;min-height:46px}
   .copiar:active{transform:scale(.98)} .copiar.done{background:var(--oro);color:var(--negro)}
   .vacio{text-align:center;color:var(--muted);padding:50px 20px;font-size:15px}
   .loader{text-align:center;color:var(--muted);padding:50px 20px}
@@ -131,14 +157,22 @@
         <button class="btn-ref" id="refrescar">↻ Actualizar</button>
       </div>
     </div>
-    <div class="row">
-      <input id="buscar" type="search" inputmode="search" placeholder="Buscar tono, código, zócalo, varilla…" autocomplete="off">
+    <form class="row" id="formBuscar" autocomplete="off">
+      <div class="buscawrap">
+        <input id="buscar" type="search" inputmode="search" placeholder="Tono, código, zócalo…" autocomplete="off">
+        <button type="button" class="limpiar" id="limpiar" aria-label="Borrar búsqueda">&times;</button>
+      </div>
       <div class="m2wrap">
-        <input id="m2" type="number" inputmode="decimal" min="0" placeholder="m² que necesito">
+        <input id="m2" type="number" inputmode="decimal" min="0" placeholder="m²">
         <span>m²</span>
       </div>
-    </div>
+      <button type="submit" class="btn-buscar" id="btnBuscar" aria-label="Buscar">🔍<span class="txt">Buscar</span></button>
+    </form>
     <div class="chips" id="chips"></div>
+    <div class="filtro" id="filtro">
+      <span id="filtroTxt"></span>
+      <button type="button" id="filtroBorrar">Borrar</button>
+    </div>
   </div>
 </header>
 
@@ -210,8 +244,30 @@ function getUrl(){ return SCRIPT_URL || localStorage.getItem('stock_url') || '';
 
 function init(){
   renderChips();
-  document.getElementById('buscar').addEventListener('input', function(e){ state.q=e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById('buscar').addEventListener('input', function(e){
+    state.q=e.target.value.trim().toLowerCase();
+    document.getElementById('limpiar').classList.toggle('on', !!e.target.value);
+    render();
+  });
   document.getElementById('m2').addEventListener('input', function(e){ var v=parseFloat(e.target.value); state.m2=isNaN(v)||v<=0?null:v; render(); });
+
+  // El botón Buscar (y la tecla Enter) cierran el teclado del celular y llevan
+  // la vista a los resultados. El filtrado ya ocurre mientras se escribe: esto
+  // es para que quede claro que la búsqueda se aplicó.
+  document.getElementById('formBuscar').addEventListener('submit', function(e){
+    e.preventDefault();
+    document.getElementById('buscar').blur();
+    document.getElementById('m2').blur();
+    render();
+    var l=document.getElementById('lista');
+    if(l) window.scrollTo({top:Math.max(0,l.offsetTop-70), behavior:'smooth'});
+  });
+  document.getElementById('limpiar').addEventListener('click', limpiarBusqueda);
+  document.getElementById('filtroBorrar').addEventListener('click', function(){
+    limpiarBusqueda();
+    document.getElementById('m2').value=''; state.m2=null;
+    render();
+  });
   document.getElementById('refrescar').addEventListener('click', function(){ cargar(true); });
   document.getElementById('visorCerrar').addEventListener('click', cerrarVisor);
   document.getElementById('visor').addEventListener('click', function(e){
@@ -265,6 +321,26 @@ function cargar(force){
         document.getElementById('lista').innerHTML='<div class="vacio">No se pudo cargar el stock.<br>Revisá la conexión o tocá ↻ Actualizar.<br><small>'+String(err.message||err)+'</small></div>';
       }
     });
+}
+
+function limpiarBusqueda(){
+  var i=document.getElementById('buscar');
+  i.value=''; state.q='';
+  document.getElementById('limpiar').classList.remove('on');
+  render();
+}
+
+// Muestra arriba qué se está filtrando, para que no queden resultados
+// escondidos por una búsqueda vieja que quedó puesta.
+function pintarFiltro(n){
+  var partes=[];
+  if(state.q) partes.push('<b>'+esc(state.q)+'</b>');
+  if(state.m2!=null) partes.push('desde <b>'+state.m2+' m²</b>');
+  var f=document.getElementById('filtro');
+  if(!partes.length){ f.classList.remove('on'); return; }
+  document.getElementById('filtroTxt').innerHTML =
+    'Buscando '+partes.join(' · ')+' — '+n+' resultado'+(n===1?'':'s');
+  f.classList.add('on');
 }
 
 function setEstado(){
@@ -356,8 +432,11 @@ function render(){
   // hace falta saber en qué solapa está lo que se busca.
   var extra = (state.cat==='todos' && state.q) ? accFiltrados(null) : [];
 
+  pintarFiltro(arr.length+extra.length);
+
   if(!arr.length && !extra.length){
-    lista.innerHTML='<div class="vacio">No hay resultados que cumplan.<br>Probá con otro filtro.</div>';
+    lista.innerHTML='<div class="vacio">No se encontró nada'+(state.q?' con «'+esc(state.q)+'»':'')+
+      '.<br>Probá con otra palabra o tocá Borrar.</div>';
     return;
   }
   if(extra.length){
