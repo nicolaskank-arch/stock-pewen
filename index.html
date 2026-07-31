@@ -86,8 +86,11 @@
   .ph .noimg{color:#b7ae9e;font-size:13px;text-align:center;padding:0 10px}
   .phlink{text-decoration:none;cursor:pointer}
   .phlink:hover img{transform:scale(1.04)}
-  .verweb{position:absolute;bottom:8px;right:8px;background:rgba(19,17,16,.82);color:var(--oro);
-    font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:6px;letter-spacing:.2px}
+  /* Botones sobre la foto: son para tocar con el dedo, no etiquetas. */
+  .verweb{position:absolute;bottom:9px;right:9px;background:rgba(19,17,16,.88);color:var(--oro);
+    font-size:13px;font-weight:800;padding:0 14px;border-radius:9px;letter-spacing:.2px;
+    min-height:40px;display:inline-flex;align-items:center;gap:5px;
+    box-shadow:0 2px 8px rgba(0,0,0,.3)}
   .catlabel{position:absolute;top:8px;left:8px;background:var(--oro);color:var(--negro);
     font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
   .body{padding:11px 12px 12px}
@@ -119,9 +122,10 @@
     margin:20px 4px 10px;padding-bottom:6px;border-bottom:2px solid var(--oro)}
   .grupo:first-child{margin-top:2px}
   /* galería: contador de fotos + visor */
-  .masfotos{position:absolute;bottom:8px;left:8px;background:rgba(19,17,16,.82);color:#fff;
-    font-size:11px;font-weight:800;padding:4px 9px;border-radius:6px;letter-spacing:.3px;
-    border:0;cursor:pointer}
+  .masfotos{position:absolute;bottom:9px;left:9px;background:rgba(19,17,16,.88);color:#fff;
+    font-size:13px;font-weight:800;padding:0 14px;border-radius:9px;letter-spacing:.3px;
+    border:0;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:5px;
+    box-shadow:0 2px 8px rgba(0,0,0,.3)}
   .masfotos:active{transform:scale(.95)}
   /* carrete: una foto por vez, completa, se desliza con el dedo */
   .visor{position:fixed;inset:0;z-index:50;background:rgba(12,10,9,.97);display:none;flex-direction:column}
@@ -613,6 +617,7 @@ function waMsg(p){
   if(p.codigo) l.push('Código: '+p.codigo);
   if(p.sku) l.push('SKU: '+p.sku);
   if(p.m2!=null) l.push('Disponible: '+(Math.round(p.m2*100)/100)+' m² ('+(p.cajas==null?'?':p.cajas)+' cajas)');
+  if(p.link) l.push(p.link);        // así el cliente puede ver el producto en la web
   l.push('Stock Córdoba');
   return l.join('\n');
 }
@@ -757,6 +762,7 @@ function waAccMsg(a){
   var l=[];
   l.push('*'+a.tono+'* — '+a.tipo);
   l.push('Disponible: '+accStock(a));
+  if(a.link) l.push(a.link);
   l.push('Stock Córdoba');
   return l.join('\n');
 }
