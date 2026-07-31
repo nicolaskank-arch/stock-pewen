@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stock Pewen</title>
+<title>Stock Pewen Córdoba</title>
+<meta name="description" content="Stock disponible del depósito de Córdoba — Pewen Pisos y Revestimientos">
 <style>
   :root{
     --negro:#131110; --negro2:#241f1a; --oro:#f6b446; --oro2:#fbb748; --oro-dark:#b7791a;
@@ -18,14 +19,16 @@
     padding:10px 14px calc(10px + env(safe-area-inset-bottom,0));box-shadow:0 2px 14px rgba(0,0,0,.25);
     border-bottom:3px solid var(--oro)}
   .top{display:flex;align-items:center;gap:11px}
-  .logo{height:24px;width:auto;max-width:74px;object-fit:contain;display:block;flex:0 0 auto;
-    background:#fff;border-radius:6px;padding:4px 6px}
-  @media(min-width:520px){ .logo{height:30px;max-width:120px;padding:4px 7px} }
+  /* Isotipo Pewen: los tres rombos. El tercero va en blanco (en la marca es
+     negro) porque acá el fondo es oscuro y si no, no se vería. */
+  .logo{height:26px;width:auto;display:block;flex:0 0 auto}
+  @media(min-width:520px){ .logo{height:32px} }
   .brand{flex:1;line-height:1}
   .brand .t1{font-size:18px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase}
   .brand .t1 b{color:var(--oro);font-weight:800}
   .brand .t2{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:rgba(255,255,255,.55);
     margin-top:2px;white-space:nowrap}
+  .brand .t2 b{color:var(--oro);font-weight:800}   /* CÓRDOBA destacado: el stock es de acá */
   .rightbox{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
   .estado{font-size:10.5px;color:rgba(255,255,255,.7);text-align:right;white-space:nowrap}
   .btn-ref{background:var(--oro);border:0;color:var(--negro);border-radius:8px;
@@ -142,8 +145,13 @@
   .flecha{background:rgba(255,255,255,.14);border:0;color:#fff;font-size:24px;line-height:1;
     width:44px;height:44px;border-radius:12px;cursor:pointer;flex:0 0 auto}
   .flecha:disabled{opacity:.25}
-  .vdesc{flex:1;text-align:center;background:var(--oro);color:var(--negro);text-decoration:none;
-    font-size:14px;font-weight:800;padding:13px 12px;border-radius:12px}
+  .vcopiar{flex:1.4;background:var(--oro);border:0;color:var(--negro);
+    font-size:14px;font-weight:800;padding:13px 10px;border-radius:12px;cursor:pointer;min-height:46px}
+  .vcopiar:active{transform:scale(.97)}
+  .vcopiar:disabled{opacity:.75}
+  .vcopiar.listo{background:#2f8f4e;color:#fff}
+  .vdesc{flex:1;text-align:center;background:rgba(255,255,255,.16);color:#fff;text-decoration:none;
+    font-size:13.5px;font-weight:700;padding:13px 10px;border-radius:12px}
   .vpie{text-align:center;color:rgba(255,255,255,.5);font-size:11.5px;padding:0 14px 2px;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
 </style>
@@ -152,10 +160,14 @@
 <header>
   <div class="controls">
     <div class="top">
-      <img class="logo" alt="Pewen" src="data:image/webp;base64,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">
+      <svg class="logo" viewBox="0 0 146 92" role="img" aria-label="Pewen">
+        <polygon points="0,34 34,0 90,56 56,92"    fill="#c9c9c9"/>
+        <polygon points="44,34 78,0 134,56 100,92" fill="#f6b446"/>
+        <polygon points="90,28 118,0 146,28 118,56" fill="#ffffff"/>
+      </svg>
       <div class="brand">
         <div class="t1">Stock <b>Pewen</b></div>
-        <div class="t2">Catálogo de stock</div>
+        <div class="t2">Depósito <b>Córdoba</b></div>
       </div>
       <div class="rightbox">
         <span class="estado" id="estado">cargando…</span>
@@ -204,6 +216,7 @@
   <div class="vpie" id="visorPie"></div>
   <div class="visor-bot">
     <button class="flecha" id="visorPrev" aria-label="Anterior">&lsaquo;</button>
+    <button class="vcopiar" id="visorCopiar">📋 Copiar foto</button>
     <a class="vdesc" id="visorDesc" href="#" target="_blank" rel="noopener" download>Descargar</a>
     <button class="flecha" id="visorNext" aria-label="Siguiente">&rsaquo;</button>
   </div>
@@ -299,6 +312,7 @@ function init(){
   document.getElementById('visor').addEventListener('click', function(e){
     if(e.target===this) cerrarVisor();          // tocar el fondo cierra
   });
+  document.getElementById('visorCopiar').addEventListener('click', function(){ copiarFoto(this); });
   document.getElementById('visorPrev').addEventListener('click', function(){ irAFoto(_verPos-1); });
   document.getElementById('visorNext').addEventListener('click', function(){ irAFoto(_verPos+1); });
   // al deslizar con el dedo, el contador sigue a la foto que quedó centrada
@@ -590,6 +604,8 @@ function cardAccesorio(a){
   + '</div>';
 }
 
+// El texto que se manda al cliente aclara la sucursal: este stock es el del
+// depósito de Córdoba y no sirve para las otras.
 function waMsg(p){
   var l=[];
   l.push('*'+p.nombre+'*'+(CAT_SHORT[p.categoria]?(' — '+CAT_SHORT[p.categoria]):''));
@@ -597,6 +613,7 @@ function waMsg(p){
   if(p.codigo) l.push('Código: '+p.codigo);
   if(p.sku) l.push('SKU: '+p.sku);
   if(p.m2!=null) l.push('Disponible: '+(Math.round(p.m2*100)/100)+' m² ('+(p.cajas==null?'?':p.cajas)+' cajas)');
+  l.push('Stock Córdoba');
   return l.join('\n');
 }
 
@@ -649,6 +666,9 @@ function actualizarVisor(){
   document.getElementById('visorDesc').setAttribute('href', f.d);
   document.getElementById('visorPrev').disabled = _verPos===0;
   document.getElementById('visorNext').disabled = _verPos===_verFotos.length-1;
+  // el botón de copiar vuelve a su estado normal al pasar a otra foto
+  var bc=document.getElementById('visorCopiar');
+  bc.textContent='📋 Copiar foto'; bc.disabled=false; bc.classList.remove('listo');
 }
 
 function irAFoto(n){
@@ -663,10 +683,81 @@ function cerrarVisor(){
   document.body.style.overflow='';
 }
 
+// ====== COPIAR LA FOTO AL PORTAPAPELES ======
+// Para copiar una imagen hay que poder leer sus bytes, y eso el navegador solo
+// lo permite si el sitio de origen lo habilita. Las de Drive sí (por eso tienen
+// su propia URL en `c`); las de pewenpisos.com.ar no, así que se piden al Apps
+// Script, que las devuelve en base64 y hace de puente.
+function blobDeFoto(f){
+  if(f.c){
+    return fetch(f.c).then(function(r){ return r.blob(); });
+  }
+  return fetch(getUrl()+'?img='+encodeURIComponent(f.u))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d.ok) throw new Error(d.error||'no se pudo leer la foto');
+      var bin=atob(d.b64), arr=new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      return new Blob([arr], {type:d.tipo});
+    });
+}
+
+// El portapapeles solo acepta PNG, y las fotos suelen ser JPG/WEBP: se redibujan.
+function aPng(blob){
+  if(blob.type==='image/png') return Promise.resolve(blob);
+  return new Promise(function(ok,err){
+    var url=URL.createObjectURL(blob), im=new Image();
+    im.onload=function(){
+      var c=document.createElement('canvas');
+      c.width=im.naturalWidth; c.height=im.naturalHeight;
+      c.getContext('2d').drawImage(im,0,0);
+      URL.revokeObjectURL(url);
+      c.toBlob(function(b){ b?ok(b):err(new Error('no se pudo convertir')); }, 'image/png');
+    };
+    im.onerror=function(){ URL.revokeObjectURL(url); err(new Error('no se pudo leer la imagen')); };
+    im.src=url;
+  });
+}
+
+function copiarFoto(btn){
+  var f=_verFotos[_verPos]; if(!f) return;
+  if(!navigator.clipboard || typeof ClipboardItem==='undefined'){
+    alert('Este navegador no permite copiar imágenes. Usá Descargar.');
+    return;
+  }
+  var t=btn.textContent;
+  btn.disabled=true; btn.textContent='Copiando…';
+
+  // Safari exige que el ClipboardItem se arme dentro del gesto del usuario, así
+  // que se le pasa la promesa en vez de esperar a que termine.
+  var promesa=blobDeFoto(f).then(aPng);
+  var escribir = navigator.clipboard.write
+    ? navigator.clipboard.write([new ClipboardItem({'image/png': promesa})])
+    : Promise.reject(new Error('sin soporte'));
+
+  escribir.then(function(){
+    btn.textContent='✓ Copiada';
+    btn.classList.add('listo');
+    setTimeout(function(){ btn.textContent=t; btn.disabled=false; btn.classList.remove('listo'); },1800);
+  }).catch(function(){
+    // algunos navegadores no aceptan la promesa: reintento con el blob ya resuelto
+    promesa.then(function(b){
+      return navigator.clipboard.write([new ClipboardItem({'image/png': b})]);
+    }).then(function(){
+      btn.textContent='✓ Copiada'; btn.classList.add('listo');
+      setTimeout(function(){ btn.textContent=t; btn.disabled=false; btn.classList.remove('listo'); },1800);
+    }).catch(function(e){
+      btn.textContent='No se pudo';
+      setTimeout(function(){ btn.textContent=t; btn.disabled=false; },2200);
+    });
+  });
+}
+
 function waAccMsg(a){
   var l=[];
   l.push('*'+a.tono+'* — '+a.tipo);
   l.push('Disponible: '+accStock(a));
+  l.push('Stock Córdoba');
   return l.join('\n');
 }
 
