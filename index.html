@@ -285,6 +285,29 @@ function cuentasPorChip(){
 
 function getUrl(){ return SCRIPT_URL || localStorage.getItem('stock_url') || ''; }
 
+// ====== USO (anónimo) ======
+// Sirve para saber si la app se usa o no. Este número se genera al azar en el
+// teléfono y no está atado a ninguna persona: no se manda nombre ni nada que
+// permita identificar a quién la abrió.
+function idAparato(){
+  var id=localStorage.getItem('ap_id');
+  if(!id){
+    id=Math.random().toString(36).slice(2,10);
+    localStorage.setItem('ap_id',id);
+  }
+  return id;
+}
+// Cuántas veces se abrió hoy en este teléfono.
+function contarApertura(){
+  var hoy=new Date().toISOString().slice(0,10);
+  var u={};
+  try{ u=JSON.parse(localStorage.getItem('ap_uso')||'{}'); }catch(e){}
+  if(u.fecha!==hoy) u={fecha:hoy, veces:0};
+  u.veces++;
+  localStorage.setItem('ap_uso',JSON.stringify(u));
+  return u.veces;
+}
+
 function init(){
   renderChips();
   document.getElementById('buscar').addEventListener('input', function(e){
@@ -351,7 +374,9 @@ function init(){
 function cargar(force){
   var url=getUrl(); if(!url) return;
   document.getElementById('estado').textContent='actualizando…';
-  fetch(url + (force?'?refresh=1':''), {method:'GET'})
+  // el conteo anónimo viaja en la misma llamada que ya trae el stock
+  var q = (force?'?refresh=1&':'?') + 'd=' + idAparato() + '&n=' + contarApertura();
+  fetch(url + q, {method:'GET'})
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(!d.ok) throw new Error(d.error||'error');
