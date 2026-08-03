@@ -31,6 +31,9 @@
   .brand .t2 b{color:var(--oro);font-weight:800}   /* CÓRDOBA destacado: el stock es de acá */
   .rightbox{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
   .estado{font-size:10.5px;color:rgba(255,255,255,.7);text-align:right;white-space:nowrap}
+  /* cuántos consultaron el stock hoy: discreto, al lado del estado */
+  .uso{font-size:10.5px;color:rgba(255,255,255,.5);white-space:nowrap;display:none}
+  .uso.on{display:block}
   .btn-ref{background:var(--oro);border:0;color:var(--negro);border-radius:8px;
     padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex:0 0 auto;white-space:nowrap}
   .btn-ref:active{transform:scale(.96)}
@@ -175,6 +178,7 @@
       </div>
       <div class="rightbox">
         <span class="estado" id="estado">cargando…</span>
+        <span class="uso" id="uso" title="Personas que consultaron el stock hoy"></span>
         <button class="btn-ref" id="refrescar">↻ Actualizar</button>
       </div>
     </div>
@@ -239,7 +243,7 @@ var CAT_LABEL = {flotante:'Piso flotante',vinilico:'Piso vinílico',deck:'Deck',
 var CAT_SHORT = {flotante:'Flotante',vinilico:'Vinílico',deck:'Deck',
   revestimiento:'Revestimiento',porcelanato:'Porcelanato',accesorio:'Accesorio'};
 
-var state = { productos:[], accesorios:[], cat:'todos', q:'', m2:null, actualizado:null };
+var state = { productos:[], accesorios:[], cat:'todos', q:'', m2:null, actualizado:null, uso:null };
 
 // Los accesorios se muestran en tres solapas: los adhesivos no tienen nada que
 // ver con zócalos ni varillas y el vendedor los busca por separado.
@@ -381,8 +385,9 @@ function cargar(force){
     .then(function(d){
       if(!d.ok) throw new Error(d.error||'error');
       state.productos=d.productos; state.accesorios=d.accesorios||[]; state.actualizado=d.actualizado;
+      state.uso=d.uso||null;
       localStorage.setItem('stock_cache', JSON.stringify({productos:d.productos, accesorios:d.accesorios||[], actualizado:d.actualizado}));
-      render(); setEstado();
+      render(); setEstado(); pintarUso();
     })
     .catch(function(err){
       document.getElementById('estado').textContent='sin conexión';
@@ -410,6 +415,16 @@ function pintarFiltro(n){
   document.getElementById('filtroTxt').innerHTML =
     'Buscando '+partes.join(' · ')+' — '+n+' resultado'+(n===1?'':'s');
   f.classList.add('on');
+}
+
+// Cuántos consultaron el stock hoy. Es un número, sin nombres: sirve para saber
+// si la app se está usando sin tener que abrir ninguna planilla.
+function pintarUso(){
+  var el=document.getElementById('uso');
+  var u=state.uso;
+  if(!u || !u.aparatos){ el.classList.remove('on'); return; }
+  el.textContent = '👤 '+u.aparatos+' hoy'+(u.aperturas>u.aparatos?(' · '+u.aperturas+' consultas'):'');
+  el.classList.add('on');
 }
 
 function setEstado(){
