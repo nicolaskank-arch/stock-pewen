@@ -92,8 +92,9 @@
   /* Botones sobre la foto: son para tocar con el dedo, no etiquetas. */
   .verweb{position:absolute;bottom:9px;right:9px;background:rgba(19,17,16,.88);color:var(--oro);
     font-size:13px;font-weight:800;padding:0 14px;border-radius:9px;letter-spacing:.2px;
-    min-height:40px;display:inline-flex;align-items:center;gap:5px;
+    min-height:40px;display:inline-flex;align-items:center;gap:5px;text-decoration:none;cursor:pointer;
     box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .verweb:active{transform:scale(.95)}
   .catlabel{position:absolute;top:8px;left:8px;background:var(--oro);color:var(--negro);
     font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
   .body{padding:11px 12px 12px}
@@ -124,12 +125,13 @@
   .grupo{font-size:13px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--negro);
     margin:20px 4px 10px;padding-bottom:6px;border-bottom:2px solid var(--oro)}
   .grupo:first-child{margin-top:2px}
-  /* galería: contador de fotos + visor */
+  /* galería: contador de fotos + visor. El cartel es solo indicación: el que
+     abre el visor es el click en toda la foto. */
   .masfotos{position:absolute;bottom:9px;left:9px;background:rgba(19,17,16,.88);color:#fff;
     font-size:13px;font-weight:800;padding:0 14px;border-radius:9px;letter-spacing:.3px;
     border:0;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:5px;
-    box-shadow:0 2px 8px rgba(0,0,0,.3)}
-  .masfotos:active{transform:scale(.95)}
+    pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .phlink:active .masfotos{transform:scale(.95)}
   /* carrete: una foto por vez, completa, se desliza con el dedo */
   .visor{position:fixed;inset:0;z-index:50;background:rgba(12,10,9,.97);display:none;flex-direction:column}
   .visor.abierto{display:flex}
@@ -595,16 +597,7 @@ function card(p){
     var sobra=Math.round((p.m2-state.m2)*100)/100;
     alcanza='<span class="alcanza">✓ alcanza (sobran '+sobra+' m²)</span>';
   }
-  var fs = fotosDe(p);
-  var img = fs.length
-    ? '<img src="'+escAttr(fs[0].u)+'" loading="lazy" alt="'+escAttr(p.nombre)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
-    : '<div class="noimg">Sin foto cargada</div>';
-  var phContent = img+'<span class="catlabel">'+(CAT_SHORT[p.categoria]||p.categoria)+'</span>'
-    + badgeFotos(fs, p.nombre)
-    + (p.link?'<span class="verweb">Ver en la web ↗</span>':'');
-  var ph = p.link
-    ? '<a class="ph phlink" href="'+escAttr(p.link)+'" target="_blank" rel="noopener">'+phContent+'</a>'
-    : '<div class="ph">'+phContent+'</div>';
+  var ph = bloqueFoto(fotosDe(p), p.nombre, p.link, CAT_SHORT[p.categoria]||p.categoria, p.nombre);
   return ''
   + '<div class="card">'
   +   ph
@@ -623,16 +616,7 @@ function card(p){
 }
 
 function cardAccesorio(a){
-  var fs = fotosDe(a);
-  var img = fs.length
-    ? '<img src="'+escAttr(fs[0].u)+'" loading="lazy" alt="'+escAttr(a.tono)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
-    : '<div class="noimg">Sin foto cargada</div>';
-  var phContent = img+'<span class="catlabel">Accesorio</span>'
-    + badgeFotos(fs, a.tono+' — '+a.tipo)
-    + (a.link?'<span class="verweb">Ver en la web ↗</span>':'');
-  var ph = a.link
-    ? '<a class="ph phlink" href="'+escAttr(a.link)+'" target="_blank" rel="noopener">'+phContent+'</a>'
-    : '<div class="ph">'+phContent+'</div>';
+  var ph = bloqueFoto(fotosDe(a), a.tono+' — '+a.tipo, a.link, 'Accesorio', a.tono);
   return ''
   + '<div class="card">'
   +   ph
@@ -670,7 +654,7 @@ function accStock(a){
 // ====== GALERÍA ======
 // Cada producto/accesorio trae `fotos`: la de la web primero y después las de
 // Drive (varias tomas del mismo tono, incluida la de ambiente). En la tarjeta se
-// ve la primera; el botón "+N" abre el resto, cada una con su descarga.
+// ve la primera; tocarla abre el visor con TODAS, cada una con su descarga.
 var _galeria = [];   // fotos de todos los items, por índice
 
 function fotosDe(x){
@@ -678,12 +662,25 @@ function fotosDe(x){
   return x.foto ? [{u:x.foto, d:x.foto, o:'web', n:''}] : [];
 }
 
-// Botón "+N" sobre la foto (solo si hay más de una).
-function badgeFotos(fotos, titulo){
-  if(fotos.length<2) return '';
+// La foto de la tarjeta abre el visor, NO la web: el vendedor la toca para verla
+// en grande y pasar las demás. Para ir a pewenpisos.com.ar está el botón
+// "Ver en la web", que corta la propagación del click para que no abra el visor.
+function bloqueFoto(fs, titulo, link, catLabel, alt){
+  var img = fs.length
+    ? '<img src="'+escAttr(fs[0].u)+'" loading="lazy" alt="'+escAttr(alt)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
+    : '<div class="noimg">Sin foto cargada</div>';
+  var dentro = img
+    + '<span class="catlabel">'+esc(catLabel)+'</span>'
+    + (fs.length>1 ? '<span class="masfotos">🔍 '+fs.length+' fotos</span>'
+       : fs.length ? '<span class="masfotos">🔍 Ver foto</span>' : '')
+    + (link ? '<a class="verweb" href="'+escAttr(link)+'" target="_blank" rel="noopener"'
+            + ' onclick="event.stopPropagation()">Ver en la web ↗</a>' : '');
+  if(!fs.length) return '<div class="ph">'+dentro+'</div>';
   var i=_galeria.length;
-  _galeria.push({titulo:titulo, fotos:fotos});
-  return '<button class="masfotos" onclick="abrirVisor(event,'+i+')">+'+(fotos.length-1)+' fotos</button>';
+  _galeria.push({titulo:titulo, fotos:fs});
+  return '<div class="ph phlink" role="button" tabindex="0" aria-label="Ver fotos de '+escAttr(alt)+'"'
+       + ' onclick="abrirVisor(event,'+i+')"'
+       + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \')abrirVisor(event,'+i+')">'+dentro+'</div>';
 }
 
 var _verFotos=[], _verPos=0;
