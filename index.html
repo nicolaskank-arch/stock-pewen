@@ -90,11 +90,13 @@
   .phlink{text-decoration:none;cursor:pointer}
   .phlink:hover img{transform:scale(1.04)}
   /* Botones sobre la foto: son para tocar con el dedo, no etiquetas. */
-  .verweb{position:absolute;bottom:9px;right:9px;background:rgba(19,17,16,.88);color:var(--oro);
-    font-size:13px;font-weight:800;padding:0 14px;border-radius:9px;letter-spacing:.2px;
-    min-height:40px;display:inline-flex;align-items:center;gap:5px;text-decoration:none;cursor:pointer;
-    box-shadow:0 2px 8px rgba(0,0,0,.3)}
-  .verweb:active{transform:scale(.95)}
+  /* Va abajo de todo, fuera de la foto: encima de la imagen se lo tocaba sin
+     querer al intentar abrir la galería. */
+  .verweb{margin-top:7px;width:100%;background:#f3efe7;color:var(--oro-dark);border:1px solid var(--linea);
+    font-size:13px;font-weight:800;padding:10px;border-radius:9px;letter-spacing:.2px;
+    min-height:42px;display:flex;align-items:center;justify-content:center;gap:5px;
+    text-decoration:none;cursor:pointer}
+  .verweb:active{transform:scale(.98)}
   .catlabel{position:absolute;top:8px;left:8px;background:var(--oro);color:var(--negro);
     font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
   .body{padding:11px 12px 12px}
@@ -611,6 +613,7 @@ function card(p){
   +       estadoStock(p)+alcanza
   +     '</div>'
   +     '<button class="copiar" onclick="copiar(this)" data-msg="'+escAttr(waMsg(p))+'">📋 Copiar para WhatsApp</button>'
+  +     (p.link?'<a class="verweb" href="'+escAttr(p.link)+'" target="_blank" rel="noopener">Ver en la web ↗</a>':'')
   +   '</div>'
   + '</div>';
 }
@@ -628,6 +631,7 @@ function cardAccesorio(a){
   +       (a.stock<=3?'<span class="estado-stock s-bajo">Últimas '+a.stock+'</span>':'')
   +     '</div>'
   +     '<button class="copiar" onclick="copiar(this)" data-msg="'+escAttr(waAccMsg(a))+'">📋 Copiar para WhatsApp</button>'
+  +     (a.link?'<a class="verweb" href="'+escAttr(a.link)+'" target="_blank" rel="noopener">Ver en la web ↗</a>':'')
   +   '</div>'
   + '</div>';
 }
@@ -662,9 +666,9 @@ function fotosDe(x){
   return x.foto ? [{u:x.foto, d:x.foto, o:'web', n:''}] : [];
 }
 
-// La foto de la tarjeta abre el visor, NO la web: el vendedor la toca para verla
-// en grande y pasar las demás. Para ir a pewenpisos.com.ar está el botón
-// "Ver en la web", que corta la propagación del click para que no abra el visor.
+// La foto de la tarjeta abre el visor, NO la web. "Ver en la web" salió de
+// encima de la foto (ocupaba 130×40 y se lo tocaba sin querer al querer ver la
+// imagen) y ahora vive abajo, en el cuerpo de la tarjeta.
 function bloqueFoto(fs, titulo, link, catLabel, alt){
   var img = fs.length
     ? '<img src="'+escAttr(fs[0].u)+'" loading="lazy" alt="'+escAttr(alt)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
@@ -672,9 +676,7 @@ function bloqueFoto(fs, titulo, link, catLabel, alt){
   var dentro = img
     + '<span class="catlabel">'+esc(catLabel)+'</span>'
     + (fs.length>1 ? '<span class="masfotos">🔍 '+fs.length+' fotos</span>'
-       : fs.length ? '<span class="masfotos">🔍 Ver foto</span>' : '')
-    + (link ? '<a class="verweb" href="'+escAttr(link)+'" target="_blank" rel="noopener"'
-            + ' onclick="event.stopPropagation()">Ver en la web ↗</a>' : '');
+       : fs.length ? '<span class="masfotos">🔍 Ver foto</span>' : '');
   if(!fs.length) return '<div class="ph">'+dentro+'</div>';
   var i=_galeria.length;
   _galeria.push({titulo:titulo, fotos:fs});
