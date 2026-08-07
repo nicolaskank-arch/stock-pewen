@@ -641,8 +641,8 @@ function card(p){
   +     '<p class="nombre">'+esc(p.nombre)+'</p>'
   +     '<p class="sub">'+esc([p.tipo,p.mm,p.codigo?('Cód. '+p.codigo):'',p.sku?('SKU '+p.sku):''].filter(Boolean).join(' · '))+'</p>'
   +     '<div class="stock">'
-  +       '<span class="pill m2">'+m2+' m²</span>'
-  +       '<span class="pill cajas">'+cajas+' cajas</span>'
+  +       (p.m2!=null?'<span class="pill m2">'+m2+' m²</span>':'')
+  +       '<span class="pill cajas">'+cajas+' '+esc(p.unidad||'cajas')+'</span>'
   +       (p.mm?'<span class="pill mm">'+esc(p.mm)+'</span>':'')
   +       estadoStock(p)+alcanza
   +     '</div>'
@@ -678,7 +678,9 @@ function waMsg(p){
   var det=[p.tipo,p.mm].filter(Boolean).join(' · '); if(det) l.push(det);
   if(p.codigo) l.push('Código: '+p.codigo);
   if(p.sku) l.push('SKU: '+p.sku);
+  // Piedra fina y demás se venden por unidad y no tienen m²: ahí va la cantidad sola.
   if(p.m2!=null) l.push('Disponible: '+(Math.round(p.m2*100)/100)+' m² ('+(p.cajas==null?'?':p.cajas)+' cajas)');
+  else if(p.cajas!=null) l.push('Disponible: '+p.cajas+' '+(p.unidad||'cajas'));
   if(p.link) l.push(p.link);        // así el cliente puede ver el producto en la web
   l.push('Stock Córdoba');
   return l.join('\n');
