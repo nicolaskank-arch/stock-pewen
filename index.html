@@ -131,6 +131,16 @@
     min-height:42px;display:flex;align-items:center;justify-content:center;gap:5px;
     text-decoration:none;cursor:pointer}
   .verweb:active{transform:scale(.98)}
+  /* Subir foto: mismo lugar y tamaño que "Ver en la web" (abajo del todo, no
+     encima de la foto — ver el comentario de .verweb) pero con borde dorado
+     para diferenciarlo del link a la web. */
+  .btn-foto{margin-top:7px;width:100%;background:#fff;color:var(--oro-dark);border:1.5px solid var(--oro);
+    font-size:13px;font-weight:800;padding:9px;border-radius:9px;letter-spacing:.2px;
+    min-height:42px;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+  .btn-foto:active{transform:scale(.98)}
+  .btn-foto:disabled{opacity:.6}
+  .subidapor{position:absolute;left:8px;bottom:9px;background:rgba(47,143,78,.92);color:#fff;
+    font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:6px}
   .catlabel{position:absolute;top:8px;left:8px;background:var(--oro);color:var(--negro);
     font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 8px;border-radius:6px;text-transform:uppercase}
   .body{padding:11px 12px 12px}
@@ -199,6 +209,17 @@
     font-size:13.5px;font-weight:700;padding:13px 10px;border-radius:12px}
   .vpie{text-align:center;color:rgba(255,255,255,.5);font-size:11.5px;padding:0 14px 2px;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
+  /* Solo aparece en fotos subidas por el equipo (no en las de la web/Drive del
+     catálogo): son las únicas que se pueden sacar desde acá. */
+  .vquitar{display:none;margin:0 14px 6px;background:none;border:0;color:#e29a8a;
+    font-size:12.5px;font-weight:700;padding:6px;cursor:pointer;flex:0 0 auto}
+  .vquitar.on{display:block}
+  /* z-index por encima del visor (50): el aviso de "subiendo foto…" tiene que
+     verse aunque el visor esté abierto. */
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--negro);color:#fff;
+    padding:11px 18px;border-radius:10px;font-size:13.5px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.3);
+    z-index:70;opacity:0;pointer-events:none;transition:opacity .2s;max-width:88vw;text-align:center}
+  .toast.on{opacity:1}
 </style>
 </head>
 <body>
@@ -260,6 +281,7 @@
   </div>
   <div class="carrete" id="carrete"></div>
   <div class="vpie" id="visorPie"></div>
+  <button class="vquitar" id="visorQuitar">🗑 Sacar esta foto (la subió el equipo)</button>
   <div class="visor-bot">
     <button class="flecha" id="visorPrev" aria-label="Anterior">&lsaquo;</button>
     <button class="vcopiar" id="visorCopiar">📋 Copiar foto</button>
@@ -267,6 +289,8 @@
     <button class="flecha" id="visorNext" aria-label="Siguiente">&rsaquo;</button>
   </div>
 </div>
+<input type="file" id="fotoInput" accept="image/*" multiple style="display:none">
+<div class="toast" id="toast"></div>
 
 <script>
 // ====== CONFIG ======
@@ -384,6 +408,28 @@ function init(){
   document.getElementById('visorCopiar').addEventListener('click', function(){ copiarFoto(this); });
   document.getElementById('visorPrev').addEventListener('click', function(){ irAFoto(_verPos-1); });
   document.getElementById('visorNext').addEventListener('click', function(){ irAFoto(_verPos+1); });
+  document.getElementById('visorQuitar').addEventListener('click', function(){
+    var f=_verFotos[_verPos];
+    if(!f || f.o!=='equipo' || !_verId) return;
+    if(!confirm('¿Sacar esta foto? La subió alguien del equipo — si está de más, repetida o mal, se puede sacar. No se puede deshacer desde acá.')) return;
+    fetch(getUrl(), {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({accion:'ocultar_foto_equipo', id:_verId, url:f.u})
+    }).catch(function(){});
+    _verFotos.splice(_verPos,1);
+    toast('Foto sacada.');
+    if(!_verFotos.length){ cerrarVisor(); }
+    else { _verPos=Math.min(_verPos,_verFotos.length-1); pintarCarrete(); actualizarVisor(); }
+    setTimeout(function(){ cargar(true); }, 1200);
+  });
+  document.getElementById('fotoInput').addEventListener('change', function(e){
+    // hay que copiar los archivos ANTES de limpiar el input: en varios navegadores
+    // e.target.files se vacía sola apenas se pisa e.target.value.
+    var lista = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = '';
+    if(lista.length && pendienteFoto) subirFoto(pendienteFoto, lista);
+  });
   // al deslizar con el dedo, el contador sigue a la foto que quedó centrada
   var _t=null;
   document.getElementById('carrete').addEventListener('scroll', function(){
@@ -633,7 +679,7 @@ function card(p){
     var sobra=Math.round((p.m2-state.m2)*100)/100;
     alcanza='<span class="alcanza">✓ alcanza (sobran '+sobra+' m²)</span>';
   }
-  var ph = bloqueFoto(fotosDe(p), p.nombre, p.link, CAT_SHORT[p.categoria]||p.categoria, p.nombre);
+  var ph = bloqueFoto(fotosDe(p), p.nombre, p.link, CAT_SHORT[p.categoria]||p.categoria, p.nombre, p.id);
   return ''
   + '<div class="card">'
   +   ph
@@ -647,13 +693,14 @@ function card(p){
   +       estadoStock(p)+alcanza
   +     '</div>'
   +     '<button class="copiar" onclick="copiar(this)" data-msg="'+escAttr(waMsg(p))+'">📋 Copiar para WhatsApp</button>'
+  +     botonFoto(p.id, p.nombre)
   +     (p.link?'<a class="verweb" href="'+escAttr(p.link)+'" target="_blank" rel="noopener">Ver en la web ↗</a>':'')
   +   '</div>'
   + '</div>';
 }
 
 function cardAccesorio(a){
-  var ph = bloqueFoto(fotosDe(a), a.tono+' — '+a.tipo, a.link, 'Accesorio', a.tono);
+  var ph = bloqueFoto(fotosDe(a), a.tono+' — '+a.tipo, a.link, 'Accesorio', a.tono, a.id);
   return ''
   + '<div class="card">'
   +   ph
@@ -665,9 +712,14 @@ function cardAccesorio(a){
   +       (a.stock<=3?'<span class="estado-stock s-bajo">Últimas '+a.stock+'</span>':'')
   +     '</div>'
   +     '<button class="copiar" onclick="copiar(this)" data-msg="'+escAttr(waAccMsg(a))+'">📋 Copiar para WhatsApp</button>'
+  +     botonFoto(a.id, a.tono)
   +     (a.link?'<a class="verweb" href="'+escAttr(a.link)+'" target="_blank" rel="noopener">Ver en la web ↗</a>':'')
   +   '</div>'
   + '</div>';
+}
+
+function botonFoto(id, nombre){
+  return '<button class="btn-foto" onclick="pedirFoto(this)" data-id="'+escAttr(id)+'" data-nombre="'+escAttr(nombre)+'">📷 Sacar/subir foto</button>';
 }
 
 // El texto que se manda al cliente aclara la sucursal: este stock es el del
@@ -705,47 +757,54 @@ function fotosDe(x){
 // La foto de la tarjeta abre el visor, NO la web. "Ver en la web" salió de
 // encima de la foto (ocupaba 130×40 y se lo tocaba sin querer al querer ver la
 // imagen) y ahora vive abajo, en el cuerpo de la tarjeta.
-function bloqueFoto(fs, titulo, link, catLabel, alt){
+function bloqueFoto(fs, titulo, link, catLabel, alt, id){
   var img = fs.length
     ? '<img src="'+escAttr(fs[0].u)+'" loading="lazy" alt="'+escAttr(alt)+'" onerror="this.parentNode.innerHTML=\'<div class=noimg>Sin foto</div>\'">'
     : '<div class="noimg">Sin foto cargada</div>';
   var dentro = img
     + '<span class="catlabel">'+esc(catLabel)+'</span>'
+    + (fs.length && fs[0].o==='equipo' ? '<span class="subidapor">Foto del equipo</span>' : '')
     + (fs.length>1 ? '<span class="masfotos">🔍 '+fs.length+' fotos</span>'
        : fs.length ? '<span class="masfotos">🔍 Ver foto</span>' : '');
   if(!fs.length) return '<div class="ph">'+dentro+'</div>';
   var i=_galeria.length;
-  _galeria.push({titulo:titulo, fotos:fs});
+  _galeria.push({titulo:titulo, fotos:fs, id:id});
   return '<div class="ph phlink" role="button" tabindex="0" aria-label="Ver fotos de '+escAttr(alt)+'"'
        + ' onclick="abrirVisor(event,'+i+')"'
        + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \')abrirVisor(event,'+i+')">'+dentro+'</div>';
 }
 
-var _verFotos=[], _verPos=0;
+var _verFotos=[], _verPos=0, _verId=null, _verTitulo='';
 
 function abrirVisor(ev, i){
   if(ev){ ev.preventDefault(); ev.stopPropagation(); }
   var g=_galeria[i]; if(!g) return;
-  _verFotos=g.fotos; _verPos=0;
+  _verFotos=g.fotos; _verPos=0; _verId=g.id; _verTitulo=g.titulo;
   document.getElementById('visorTit').textContent=g.titulo;
-  var c=document.getElementById('carrete');
-  c.innerHTML=g.fotos.map(function(f){
-    return '<div class="slide"><img src="'+escAttr(f.u)+'" alt="'+escAttr(g.titulo)+'"></div>';
-  }).join('');
-  c.scrollLeft=0;
+  pintarCarrete();
   document.getElementById('visor').classList.add('abierto');
   document.body.style.overflow='hidden';
   actualizarVisor();
+}
+
+function pintarCarrete(){
+  var c=document.getElementById('carrete');
+  c.innerHTML=_verFotos.map(function(f){
+    return '<div class="slide"><img src="'+escAttr(f.u)+'" alt="'+escAttr(_verTitulo)+'"></div>';
+  }).join('');
+  c.scrollLeft=0;
 }
 
 // Refleja en el pie y el contador la foto que se está viendo.
 function actualizarVisor(){
   var f=_verFotos[_verPos]; if(!f) return;
   document.getElementById('visorCont').textContent=(_verPos+1)+' / '+_verFotos.length;
-  document.getElementById('visorPie').textContent = f.o==='drive' ? (f.n||'Drive') : 'pewenpisos.com.ar';
+  document.getElementById('visorPie').textContent = f.o==='drive' ? (f.n||'Drive') : f.o==='equipo' ? 'Foto del equipo' : 'pewenpisos.com.ar';
   document.getElementById('visorDesc').setAttribute('href', f.d);
   document.getElementById('visorPrev').disabled = _verPos===0;
   document.getElementById('visorNext').disabled = _verPos===_verFotos.length-1;
+  // solo se puede sacar una foto que subió el equipo (no las del catálogo)
+  document.getElementById('visorQuitar').classList.toggle('on', f.o==='equipo');
   // el botón de copiar vuelve a su estado normal al pasar a otra foto
   var bc=document.getElementById('visorCopiar');
   bc.textContent='📋 Copiar foto'; bc.disabled=false; bc.classList.remove('listo');
@@ -842,12 +901,100 @@ function waAccMsg(a){
   return l.join('\n');
 }
 
+// ====== SUBIR FOTO (cualquiera del equipo, desde el celu o la PC) ======
+// Cada card tiene un botón: en el celu abre la cámara o la galería (elige el
+// navegador), en la compu abre el explorador de archivos. Sin revisión previa:
+// queda visible para todos apenas termina de subir.
+var pendienteFoto = null;
+function pedirFoto(btn){
+  if(!getUrl()){ toast('Conectá el stock primero (ver arriba).'); return; }
+  pendienteFoto = { id: btn.getAttribute('data-id'), nombre: btn.getAttribute('data-nombre'), btn: btn };
+  document.getElementById('fotoInput').click();
+}
+
+// Achica la foto en el navegador antes de mandarla (una foto de celu pesa
+// varios MB; así viaja rápido incluso con datos móviles).
+function comprimirImagen(file){
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      var MAX = 1600;
+      var w = img.width, h = img.height;
+      if(w > MAX || h > MAX){
+        if(w > h){ h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function subirUnaFoto(destino, file){
+  return comprimirImagen(file).then(function(img){
+    return fetch(getUrl(), {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        id: destino.id,
+        nombre: destino.nombre,
+        imagenBase64: img.base64,
+        mimeType: img.mimeType
+      })
+    });
+  });
+}
+
+// Sube una o varias fotos de una, una por una (progreso claro — "2 de 5" — y
+// no se satura el backend mandando todo junto).
+function subirFoto(destino, files){
+  var lista = Array.prototype.slice.call(files);
+  if(!lista.length) return;
+  var btn = destino.btn;
+  if(btn) btn.disabled = true;
+  var ok = 0, fallaron = 0;
+
+  function siguiente(i){
+    if(i >= lista.length){
+      if(btn) btn.disabled = false;
+      if(fallaron){
+        toast(ok + ' foto' + (ok===1?'':'s') + ' subida' + (ok===1?'':'s') + ', ' + fallaron + ' no se pudo' + (fallaron===1?'':'ieron') + '.');
+      } else {
+        toast(ok > 1 ? '¡' + ok + ' fotos subidas! Ya las ve todo el equipo.' : '¡Foto subida! Ya la ve todo el equipo.');
+      }
+      setTimeout(function(){ cargar(true); }, 1500);
+      return;
+    }
+    toast(lista.length > 1 ? 'Subiendo foto ' + (i+1) + ' de ' + lista.length + '…' : 'Subiendo foto…');
+    subirUnaFoto(destino, lista[i])
+      .then(function(){ ok++; siguiente(i+1); })
+      .catch(function(){ fallaron++; siguiente(i+1); });
+  }
+  siguiente(0);
+}
+
 function copiar(btn){
   var msg=btn.getAttribute('data-msg');
   navigator.clipboard.writeText(msg).then(function(){
     btn.classList.add('done'); var t=btn.textContent; btn.textContent='✓ Copiado';
     setTimeout(function(){ btn.classList.remove('done'); btn.textContent=t; },1400);
   }).catch(function(){ prompt('Copiá el texto:', msg); });
+}
+
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function(){ t.classList.remove('on'); }, 2200);
 }
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
