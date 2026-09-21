@@ -118,6 +118,13 @@
   .card{background:var(--card);border:1px solid var(--linea);border-radius:14px;overflow:hidden;
     box-shadow:var(--sombra);display:flex;flex-direction:column;transition:box-shadow .15s}
   .card:hover{box-shadow:0 6px 20px rgba(20,15,10,.12)}
+  /* Cartel grande arriba de la tarjeta (no encima de la foto, para no pisar el
+     catlabel/masfotos que ya viven ahí): altas y reposiciones recientes. Se
+     apaga solo pasados MOVIMIENTOS_DIAS (ver Codigo.gs), no hay que sacarlo a mano. */
+  .cartel-mov{padding:8px 12px;font-size:12.5px;font-weight:900;letter-spacing:.4px;
+    text-align:center;text-transform:uppercase;color:#fff}
+  .cartel-mov.nuevo{background:var(--oro-dark)}
+  .cartel-mov.reingreso{background:var(--ok)}
   .ph{position:relative;background:#efeae1;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;overflow:hidden}
   .ph img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}
   .ph .noimg{color:#b7ae9e;font-size:13px;text-align:center;padding:0 10px}
@@ -671,6 +678,14 @@ function estadoStock(p){
   return '';
 }
 
+// Cartel grande de "nuevo ingreso" / "reingreso de stock" (lo pone marcarMovimientos
+// en el backend, comparando contra la corrida anterior). Sin novedad, no devuelve nada.
+function cartelMovimiento(x){
+  if(x.movimiento==='nuevo')     return '<div class="cartel-mov nuevo">🆕 Nuevo ingreso</div>';
+  if(x.movimiento==='reingreso') return '<div class="cartel-mov reingreso">📦 Reingreso de stock</div>';
+  return '';
+}
+
 function card(p){
   var cajas = p.cajas==null?'—':p.cajas;
   var m2 = p.m2==null?'—':(Math.round(p.m2*100)/100);
@@ -682,6 +697,7 @@ function card(p){
   var ph = bloqueFoto(fotosDe(p), p.nombre, p.link, CAT_SHORT[p.categoria]||p.categoria, p.nombre, p.id);
   return ''
   + '<div class="card">'
+  +   cartelMovimiento(p)
   +   ph
   +   '<div class="body">'
   +     '<p class="nombre">'+esc(p.nombre)+'</p>'
@@ -703,6 +719,7 @@ function cardAccesorio(a){
   var ph = bloqueFoto(fotosDe(a), a.tono+' — '+a.tipo, a.link, 'Accesorio', a.tono, a.id);
   return ''
   + '<div class="card">'
+  +   cartelMovimiento(a)
   +   ph
   +   '<div class="body">'
   +     '<p class="nombre">'+esc(a.tono)+'</p>'
