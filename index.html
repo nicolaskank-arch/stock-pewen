@@ -304,6 +304,13 @@
 // URL del Web App (termina en /exec). Ya conectada al stock de Pewen.
 var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9bYvlWTbq8h736zhANFcbV5ALWkCT6CW6iwj7ymfcFNXtiNnRnbCsjFzgHBdMxdJh/exec";
 
+// Se toca en CADA cambio de este archivo (cualquier valor distinto sirve).
+// La sirve para que el celu de cada vendedor se autoactualice solo -- ver
+// revisarActualizacion() más abajo. Si no se toca acá, un cambio nuevo
+// publicado en GitHub Pages puede quedar invisible para el que ya tenía la
+// pestaña abierta.
+var APP_BUILD = "2026-09-21c";
+
 // Orden preferido y etiquetas. Los chips se arman según qué categorías haya en el stock.
 // Orden de las solapas: es el que pidió Nicolás, por cómo se venden.
 var CAT_ORDER = ['flotante','vinilico','porcelanato','revestimiento','deck','accesorio'];
@@ -357,6 +364,26 @@ function cuentasPorChip(){
 }
 
 function getUrl(){ return SCRIPT_URL || localStorage.getItem('stock_url') || ''; }
+
+// ====== AUTOACTUALIZACIÓN ======
+// El celu de un vendedor suele quedar con esta pestaña abierta días enteros
+// (se cambia a WhatsApp para mandar el mensaje y se vuelve, nunca la cierra
+// del todo) -- así nunca vuelve a pedir este archivo y se queda con el código
+// viejo aunque yo publique uno nuevo. Cada vez que la pestaña cambia de
+// visible a oculta (o viceversa: se manda el WhatsApp y se vuelve) se
+// rechequea en silencio si hay una versión más nueva; si la hay, se recarga
+// sola. También se revisa cada 15 min por si a alguien le queda la pestaña
+// al frente todo el día sin cambiar de app. Nadie tiene que enterarse ni
+// tocar nada -- si no hay nada nuevo, no pasa nada.
+function revisarActualizacion(){
+  fetch(location.pathname + '?build=' + Date.now(), {cache:'no-store'})
+    .then(function(r){ return r.text(); })
+    .then(function(html){
+      var m = html.match(/APP_BUILD\s*=\s*"([^"]+)"/);
+      if(m && m[1] && m[1]!==APP_BUILD) location.reload();
+    })
+    .catch(function(){});   // sin conexión o falló: sigue con lo que tiene, no rompe nada
+}
 
 // ====== USO (anónimo) ======
 // Sirve para saber si la app se usa o no. Este número se genera al azar en el
@@ -458,6 +485,9 @@ function init(){
     if(!/\/exec$/.test(u)){ alert('La URL tiene que terminar en /exec'); return; }
     localStorage.setItem('stock_url', u); document.getElementById('setup').style.display='none'; cargar(true);
   });
+
+  document.addEventListener('visibilitychange', revisarActualizacion);
+  setInterval(revisarActualizacion, 15*60*1000);
 
   if(!getUrl()){ document.getElementById('setup').style.display='block'; document.getElementById('estado').textContent=''; return; }
   // mostrar cache guardado al toque, y refrescar en segundo plano
