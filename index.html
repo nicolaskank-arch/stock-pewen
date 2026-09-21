@@ -604,7 +604,11 @@ function filtrados(){
     if(state.q && textoProd(p).indexOf(state.q)<0) return false;
     return true;
   }).sort(function(a,b){
-    return (b.m2||0)-(a.m2||0);   // siempre de mayor a menor m² (también al buscar)
+    // nuevo ingreso / reingreso primero (en cualquier categoría), y recién
+    // después de mayor a menor m² -- antes ordenaba solo por m²
+    var ca=a.movimiento?1:0, cb=b.movimiento?1:0;
+    if(ca!==cb) return cb-ca;
+    return (b.m2||0)-(a.m2||0);
   });
 }
 
@@ -716,10 +720,10 @@ function card(p){
 }
 
 function cardAccesorio(a){
+  // sin cartel de nuevo ingreso/reingreso acá: zócalos/varillas/adhesivos quedan afuera (a.movimiento nunca viene)
   var ph = bloqueFoto(fotosDe(a), a.tono+' — '+a.tipo, a.link, 'Accesorio', a.tono, a.id);
   return ''
   + '<div class="card">'
-  +   cartelMovimiento(a)
   +   ph
   +   '<div class="body">'
   +     '<p class="nombre">'+esc(a.tono)+'</p>'
